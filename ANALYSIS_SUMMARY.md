@@ -19,7 +19,9 @@ Discover collections:
 
 Code lives in `scripts/` (`download_data.py`, `compute_means.py`, `config.py`).
 Output is 4 parquet files + README under `/data/ANTXR2/celltype_expression/`
-(351,128,441 rows total, grouped by `dataset_id x donor_id x cell_type x assay`).
+(338,470,470 rows total, grouped by `dataset_id x donor x cell_type x assay`,
+where `donor` is `donorID_unified` for the gut atlas -- see the 2026-09-03
+donor-identity correction below).
 
 Full caveat list (capture rate placeholder, dataset selection, gut atlas overlap,
 dataset-level tissue/disease metadata, memento's mean vs. naive average) is in
@@ -92,9 +94,8 @@ Headline pattern: **not a simple "epithelial vs. non-epithelial" story.**
   if anything the opposite of a stem-skew.
 - Caveat on the literal #1 rank ("enterocyte of epithelium proper of small
   intestine"): only 2 donor-units / 1,415 cells -- a thinly-sampled,
-  fragmented label. The well-powered generic "enterocyte" label (217
-  donor-units, 218,750 cells) ranks far lower (~150th of 238), ~63x lower
-  mean. Don't over-read the literal top rank without checking `n_donors`.
+  fragmented label. The well-powered generic "enterocyte" label (131 donors,
+  218,757 cells) ranks far lower (150th of 238), ~63x lower mean. Don't over-read the literal top rank without checking `n_donors`.
 
 ## Skin fibroblast atlas (Steele et al., Nat. Immunol. 2025) -- second session
 
@@ -231,10 +232,434 @@ it documents what was actually tried and why it looked plausible at the time --
 `source_study` and `sample_id` are now both in the output specifically so neither
 level of granularity is silently lost.
 
+## ANTXR1/ANTXR2 paralog co-presence across cell types, MRC2, and a corrected
+redundancy framing
+
+Third session, working from the two completed Phase 1 atlases above (no new
+downloads or compute -- pure query/analysis/visualization on
+`combined_celltype_means.parquet` and `skin_fibroblast_celltype_means.parquet`).
+
+Terminology note: this section uses "co-presence" (matching the framing
+question already posed in `prompts/skin_means.md`: "does ANTXR1/ANTXR2 paralog
+co-presence vary by cell type") rather than "co-expression" -- everything here
+is a **cell-type-mean** comparison (does a cell type's average include both
+genes), which is a different and weaker claim than **co-expression**, reserved
+throughout this project (see `prompts/initial_discussion.md`,
+`prompts/celltype_means.md`) for the still-unstarted Phase 2 question of
+whether the *same individual cells* express both genes simultaneously, as
+opposed to two disjoint subpopulations averaging out to a similar-looking
+mean. Conflating the two terms would make Phase 2 write-ups ambiguous against
+this one.
+
+**Co-presence scatter (both atlases, log10 mean expression, one dot per cell
+type/subtype).** Whole-body: weak-to-moderate correlation between ANTXR1 and
+ANTXR2 across the 238 cell types (Pearson r=0.326 log-log, R²=0.106, OLS
+slope 0.19, residual scatter 5.4x around the trend). Only 10 of 238 cell types
+(~4%) land in a genuinely discordant quadrant (one paralog in its top quartile,
+the other in its bottom): ANTXR2-hi/ANTXR1-lo -- classical monocyte,
+plasmacytoid dendritic cell, basophil, hematopoietic stem cell, hepatocyte,
+Paneth cell of colon (thin, n=3); ANTXR1-hi/ANTXR2-lo -- myoepithelial cell,
+spermatocyte/spermatid (both n=1, don't trust). Most cell types sit in a broad,
+noisy co-presence band, not hugging either axis. Skin fibroblast subtypes
+(healthy, nonlesional): no significant correlation at all (r=-0.18, n=13).
+
+**The gut epithelial lineage is the most extreme, best-powered outlier in the
+whole atlas.** Every well-powered gut epithelial label -- not just the thin
+"proper of small intestine" splits already flagged as a caveat above -- sits at
+the ANTXR2-dominant/ANTXR1-near-absent extreme: intestine goblet cell
+(log-ratio +1.08, n=194), intestinal crypt stem cell (+1.21, n=134), enterocyte
+(+2.12, n=142), colonocyte (+2.15, n=84), tuft cell of small intestine (+1.64,
+n=92) -- vs. an atlas-wide median ratio of +0.42. Directly relevant to HFS's
+gut phenotype (severe/ISH form: chronic diarrhea, protein-losing enteropathy).
+Counter-example, reported alongside rather than dropped: `fibroblast of
+gingiva` (n=62, well-powered) is *ANTXR1*-dominant (ratio -0.55) despite
+gingival hypertrophy being a hallmark HFS symptom -- if gingival fibroblasts
+specifically lean on ANTXR1, this cell type's own paralog balance doesn't
+explain that phenotype the same way.
+
+**MRC2 (the collagen-VI-clearance partner ANTXR2 is reported to work with) is
+essentially absent specifically in gut epithelium**, checked with a
+lineage-matched comparison (gut epithelium vs. other low-ANTXR2 epithelia --
+keratinocyte, corneal epithelial cell -- to rule out "it's just an epithelial
+vs. mesenchymal thing"): keratinocyte and corneal epithelial cell both retain
+some MRC2 (3-4e-5) despite barely expressing ANTXR2 at all, while all four
+well-powered gut epithelial types (enterocyte, colonocyte, goblet cell, crypt
+stem cell) show MRC2 at the detection floor. Reframes the gut finding: not
+"gut can't clear collagen VI," but "collagen-VI clearance probably was never
+gut epithelium's job -- ANTXR2's presence there is doing something else."
+
+**Correction, prompted by user pushback on the framing (not the data): early
+in this analysis we treated "ANTXR1 present alongside ANTXR2 in a cell type's
+mean" as evidence of functional redundancy/backup. That doesn't follow.**
+Redundancy requires *shared function*, which cell-type-level co-presence alone
+doesn't establish -- and the two paralogs are reported to bind different
+domains of collagen VI (triple-helical vs. C5), so even
+co-presence-plus-shared-binding-partner isn't proof of substitutability.
+Concrete counter-evidence, not just a literature caveat: **skin fibroblasts --
+the tissue with HFS's most visible pathology (the disease's namesake nodules)
+-- show robust ANTXR1 co-presence** (ANTXR2:ANTXR1 ratio <1 in 9 of 13 healthy
+skin fibroblast subtypes; see the skin atlas above). If ANTXR1 co-presence
+conferred real protection, skin should be comparatively spared -- it isn't.
+The corrected framing: the ANTXR1:ANTXR2 scatter is a cell-type co-presence
+map, not a redundancy map, and any composite "vulnerability score" built from
+it would be overclaiming what the data supports (and would still say nothing
+about true single-cell co-expression either way). This governs the heatmap
+design below (no composite score, ever).
+
+Clinical tissue-involvement grounding used throughout (see the heatmap's own
+`COVERAGE_GAP_NOTE` for exact sourcing): GAPO syndrome (ANTXR1 biallelic LoF)
+-- growth retardation/metaphyseal dysplasia, alopecia, pseudoanodontia
+(failed tooth eruption), progressive optic atrophy/glaucoma, dilated scalp
+veins, hypogonadism; GAPO fibroblasts specifically show disrupted actin
+cytoskeleton and reduced ECM turnover (same clearance-failure logic as HFS).
+HFS/infantile systemic hyalinosis (ANTXR2 biallelic LoF) -- discrete
+papular/nodular skin, gingival, and perianal lesions (matrix-accumulation
+pathology); joint flexion contractures and osteopenia/osteolysis; chronic
+diarrhea and protein-losing enteropathy with *diffuse* (non-nodular)
+histological hyaline deposition in the gut wall -- a different kind of lesion
+from the skin/gingiva nodules, not the same pathology at lower severity; and
+(severe/ISH form) additional diffuse hyaline deposition in muscle, lymph node,
+spleen, thyroid, and adrenal gland.
+
+### ECM-clearance-pathway heatmap (figure)
+
+Implemented per a reviewed plan (`/home/ubuntu/.claude/plans/clean-up-the-tissue-enchanted-axolotl.md`).
+New files: `scripts/cell_type_curation.py` (curated row lists, disease
+categories, palette -- pure data), `scripts/gene_panel_query.py` (query/
+aggregation generalized from `query_antxr2_table.py`'s pattern to an 8-gene
+panel, same two-step donor-equal-weighted method for the whole-body atlas and
+sample-equal-weighted for skin), `scripts/plot_ecm_clearance_heatmap.py` (the
+figure). `config.py` gained `GENE_PANEL` and `FIGURES_DIR`.
+`query_antxr2_table.py` untouched.
+
+- **Gene panel**: `ANTXR1, ANTXR2, MRC2, CTSB, CTSK, MMP14, TIMP2, LAMP1` --
+  fixed scope, not the separate activation-axis panel.
+- **Rows**: 31 curated whole-body cell types (thin site-specific GI splits
+  excluded per user decision) in 4 categories -- HFS-nodular/fibrotic,
+  HFS-diffuse/systemic (GI + muscle + lymphoid organs, merged from two
+  categories to fit the dataviz skill's validated 3-hue all-pairs-safe
+  categorical palette once rows are clustering-reordered rather than
+  category-blocked), GAPO-relevant, and a neither-disease comparison baseline
+  -- plus all 13 skin fibroblast subtypes, annotated healthy vs.
+  disease-emergent. That annotation was verified against the published paper
+  (not left as a naming-pattern guess, per user decision): three fibroblast
+  populations have no healthy-skin counterpart per the paper (inflammatory
+  myofibroblasts, plain myofibroblasts, fascia-like myofibroblasts -- the
+  paper's own F6/F7/F8, mapped onto our object's differently-numbered F6/F6/F7
+  labels for the same three groups). `F_Fascia` is flagged "unresolved," not
+  silently coerced either way -- the paper says healthy fascial fibroblasts
+  were merged into F2:Universal, yet our object has `F_Fascia` as its own
+  distinct label with real cells (2,978 cells, 3 donors), a genuine
+  discrepancy not resolved from a secondary source alone.
+- **Row order**: hierarchical clustering (average linkage, correlation
+  distance on the log-transformed gene profile), computed independently per
+  panel, per user request -- replaces an earlier category-block-order plan.
+  No dendrogram is drawn (per user request); only the leaf order is used.
+- **Color**: per-gene (column) min-max normalization, added after the first
+  render showed LAMP1 (a uniformly-high housekeeping lysosomal gene) anchoring
+  the shared color scale and drowning out every gene's own cross-cell-type
+  pattern -- per user request. Real values are preserved throughout: in-cell
+  text (skin panel), the CSV's `mean_expression`/`log10_mean_expression`
+  columns, and a separate `normalized_0_1` column carrying exactly what color
+  was displayed. Two independent color scales (one per panel, each its own
+  log floor) since the README's flat-capture-rate caveat means cross-panel
+  absolute-scale comparison isn't well supported by the data.
+- **Hard constraint carried through the implementation, not just prose**: no
+  function computes or stores an ANTXR2:ANTXR1 ratio or any other composite
+  score for display/export -- the one exception (an ANTXR2:ANTXR1 ratio used
+  only to cross-check against the earlier scatter's "9 of 13" finding) is
+  printed to stdout only, never written to a file or plotted.
+- **Coverage gaps handled as a caption footnote, not placeholder rows**: bone/
+  cartilage/joint/synovium, teeth, thyroid, adrenal, gonadal tissue have no
+  matching Cell Ontology label anywhere in either atlas -- stated explicitly
+  rather than silently omitted or faked as measured-near-zero.
+- **Output**: `/data/ANTXR2/figures/ecm_clearance_heatmap/` --
+  `heatmap.png`/`.svg` and `whole_body_curated.csv`/`skin_curated.csv` (each
+  with the score/scale/normalization/coverage-gap caveats embedded as header
+  comments).
+- **Verification passed**: exactly 8 genes returned per scan; no curated row
+  missing from either atlas (would have logged a warning); `n_donors`/
+  `n_samples` constant across all 8 genes within a row (no gene silently
+  missing for some donor); MRC2 near-zero specifically across the GI-category
+  whole-body rows, matching the finding above; skin ANTXR2>ANTXR1 in 4/13
+  subtypes (i.e. ANTXR1>=ANTXR2 in 9/13), matching the scatter finding
+  exactly.
+
+## Phase 2 prep: co-expression working set (Elmentaite2021 trio)
+
+Preparation only -- no correlation computed yet. Built by
+`scripts/subset_coexpression_data.py` (+ `capture_rate.py`,
+`download_pbmc_reference.py`).
+
+**Two variants exist**, selected with `--variant {celltype,level3}` from
+`config.COEXPR_VARIANTS`; they differ *only* in which annotation column defines
+the groups, and each writes its own h5ad and README into
+`/data/ANTXR2/coexpression/`:
+
+| variant | file | cells | groups from |
+|---|---|---:|---|
+| `celltype` | `elmentaite2021_trio.h5ad` (0.37 GB) | 82,034 | CELLxGene-harmonised `cell_type` |
+| `level3` | `elmentaite2021_trio_level3.h5ad` (0.26 GB) | 56,882 | authors' own `level_3_annot` |
+
+`level3` is the later, cleaner one (see "Level-3 variant" below) and is the
+better default for co-expression work; `celltype` is kept because the Phase 1
+means and the heatmap are all in `cell_type` space, so it is what joins back to
+them. Both are 18,370 genes, carry identical capture-rate columns, and record
+their variant in `uns['provenance']`.
+
+**Investigating the enterocyte label first changed what we thought we had.** The
+whole-body "218,750 enterocytes / 142 donors" figure was inflated by
+double-counting: all 75 donors in the Gut Cell Atlas "Healthy reference" release
+are *also* in "Extended+" (the README's caveat 3 biting in practice). Real unique
+count is 152,548 cells / 169 donors, from a single collection -- and effectively
+just two studies (Kong2023 52%, Elmentaite2021 23%, then a long unusable tail).
+Also: "enterocyte" is 96% small intestine (only 386 large-intestine cells), so
+enterocyte vs. colonocyte is a real anatomical contrast, not a naming one; and
+`disease == normal` is **not** a healthy baseline -- 54,246 of those cells are
+`Neighbouring_inflamed` (IBD donors' uninflamed-looking tissue) and 9,325
+`Neighbouring_cancer`, leaving only 74,594 truly `Non_pathological`. That
+distinction exists only in the raw h5ad's `sample_category`, not in our parquet.
+
+**Chosen slice: Elmentaite2021** -- 398,460 cells, 38 donors, 100%
+`Non_pathological`, and critically it contains all three needed roles from the
+**same 35 donors**, one lab, one protocol, balanced 5'/3' chemistry
+(donor counts by `donorID_unified`; see the donor-identity correction below --
+the raw `donor_id` column would say 41 and 36, and both are wrong):
+
+| cell type | cells | role | ANTXR2 raw mean |
+|---|---:|---|---:|
+| fibroblast | 42,278 | canonical: ANTXR1 + ANTXR2 + MRC2 all present | 0.224 |
+| enterocyte | 35,062 | the unexplained case (ANTXR2 without ANTXR1/MRC2) | 0.078 |
+| macrophage | 4,694 | myeloid calibration control | 0.116 |
+
+(per-group donor counts, `donorID_unified`: fibroblast 38, enterocyte 35,
+macrophage 38; 35 shared by all three.)
+
+All clear memento's 0.07 `filter_mean_thresh`; enterocyte only just, so a null
+result there is underpowered rather than evidence of absence. This beats the
+originally-sketched design (gut epithelium here, fibroblasts from the skin
+atlas, myeloid from a third cohort), which would have confounded every
+cross-cell-type difference with cohort and technology.
+
+### Second curation error found -- and this one propagated into published output
+
+**`gastrointestinal tract (lamina propria) macrophage` (CL:0000865) is not a
+macrophage.** All 42,302 cells carrying that label across the *entire* Gut Cell
+Atlas are authored `level_1_annot=Mesenchymal`, `level_2_annot=Fibroblast`,
+`level_3_annot=Lamina_propria_fibroblast_ADAMDEC1`. Markers side with the
+authors, decisively: PTPRC 0.4% positive, CD68 2.5%, LYZ 0.5%, C1QA 0.5% --
+against COL1A1 **89%**. These are fibroblasts; the CELLxGene ontology mapping is
+wrong, systematically, across all 10+ constituent studies.
+
+**Corrected in the heatmap (2026-09-01):** the row was **dropped** from
+`WHOLE_BODY_CATEGORIES` in `scripts/cell_type_curation.py` and
+`plot_ecm_clearance_heatmap.py` re-run -- the whole-body panel is now 30 cell
+types (was 31), and the regenerated figure/CSVs no longer contain the label.
+Dropped rather than relabelled to `fibroblast`: the generic `fibroblast` row
+already represents that compartment in the same panel, and a second fibroblast
+row under a GI heading would imply a distinct GI-resident population the label
+cannot support.
+
+**Still uncorrected:** the ANTXR1 top-20 table earlier in *this file* lists
+`gastrointestinal tract (lamina propria) macrophage` (137 donors after the
+2026-09-03 donor-identity re-run; 147 before) among
+ANTXR1-high cell types, described as a macrophage. The number is right but the
+identity is wrong -- and its ANTXR1-high rank is in fact *explained* by it being
+a fibroblast, which is consistent with every other fibroblast row there rather
+than the surprise it reads as. Treat that row as a fibroblast when reading the
+table.
+
+Same lesson as the donor-identity correction earlier in this file: a label that
+looked authoritative (a Cell Ontology term, no less) was wrong, and only a
+marker check caught it. The trio's marker panel is therefore recomputed on every
+pipeline run rather than trusted from documentation.
+
+### Two capture-rate columns, deliberately not averaged
+
+memento takes per-cell `q` via `q_column` (asserts `max < 1`). Both columns are
+attached; they rest on different assumptions, so disagreement is informative.
+
+- **`capture_rate_chem` = 0.06991** (both chemistries). memento's own broad
+  droplet rate 0.07 (`publication/cellxgene/make_cube.py`, and the value used in
+  their PBMC *co-expression* analysis), corrected for sequencing saturation.
+  The correction is **not** the naive product: 10x "sequencing saturation" is a
+  read-duplicate fraction, not molecule loss, so it's inverted through the
+  Poisson relation (`s = 1-(1-e^-L)/L`, `detected = 1-e^-L`). At the assumed
+  s=0.85 that gives L=6.658, detected=0.9987 -- i.e. nearly inert, which is the
+  honest answer; the naive product would have understated q by ~15%.
+  `ASSUMED_SATURATION=0.85` is an **assumption**: the paper never states
+  saturation and ENA has `read_count=0` for all 89 runs of the adult GEX
+  accession (E-MTAB-9543), so it is unrecoverable for these samples; only
+  E-MTAB-8901 (developing gut, ~44K reads/cell) supports the 80-85% figure.
+- **`capture_rate_pbmc` = 0.0399 (3' v2) / 0.0544 (5' v2)**, transferred from
+  chemistry-matched 10x public PBMC references (`pbmc8k`,
+  `sc5p_v2_hs_PBMC_10k`) by median UMI-depth ratio across marker-gated immune
+  populations. Gut immune cells run *shallower* than blood (ratios 0.52-1.09),
+  so this lands below the nominal 0.07 -- plausible for dissociated tissue.
+  Limitation stated in the output README: it assumes a given immune cell type
+  carries the same absolute mRNA content in gut as in blood, which
+  tissue-residency may violate.
+
+Two implementation traps worth remembering: (1) the gates must be evaluated on
+the study's **immune compartment** (84,330 cells), not the working set -- the
+trio has no lymphocytes, so a first pass gating the subset matched only doublets
+and ambient RNA and produced ratios >1 in the wrong direction; (2) **CD68 is not
+a macrophage marker in gut** -- 52% positive, mean 3.10 in *enterocytes* (a
+lysosomal glycoprotein, and enterocytes have very active endolysosomal
+compartments), so the myeloid gate uses LYZ + AIF1 with EPCAM-negative instead.
+
+Also noted: `obs['n_counts']` is *not* the row sum of the shipped matrix (runs
+~0.04% higher, max 14% on one cell; predates this release's gene subsetting,
+since `feature_is_filtered` is all-False). Everything depth-related in the
+pipeline uses matrix row sums.
+
+### Third ID correction: `donor_id` is wrong in both directions (2026-09-03)
+
+Prompted by the question "do donors appear in 2 different `sourceID`s?" The
+literal answer was reassuring -- 4 donors do (`390C`, `HT-228`, `HT-234`,
+`HT-236`), none of them in Elmentaite2021 -- but checking it exposed a worse
+problem in `donor_id` itself, which **does** reach our data:
+
+- **Collision.** `A25` and `A34 (417C)` each map to *two different people*. For
+  `A34 (417C)`: `D11` (55-74y, 31,370 cells, 22 samples) and `D12` (18-34y,
+  5,814 cells, 2 samples). Different age brackets -- unambiguously two donors
+  under one id string. 8,304 cells in the `celltype` working set carry it.
+- **Aliases.** 34 people appear under several `donor_id` strings in Extended+
+  (9 in Healthy reference); in Elmentaite2021, 3 do -- `D12` -> `A32 (411C)` /
+  `A34 (417C)`, `D2` -> `T036` / `T036NEG` / `T036POS`, `D5` -> `T110NEG` /
+  `T110POS`. The NEG/POS pairs are sorted fractions of one donor. (`D12` is
+  caught in *both* problems.)
+
+Net in Elmentaite2021: **41 `donor_id` strings for 38 actual people.** So
+`donor_id` simultaneously merges two donors and splits three others.
+
+**Why this is worse than a miscount.** The project's binding aggregation method
+averages *equally across donors*, so a merged pair is under-weighted and a split
+donor is over-weighted. And memento's 2D path bootstraps over donors, so
+carrying `donor_id` into the co-expression work would be straightforward
+pseudo-replication in exactly the estimates we are about to compute.
+
+**Fix, per user instruction that all analysis use `donorID_unified`:**
+`config.DONOR_UNIFIED_COL` was added and `compute_means.py` now resolves the
+donor column per dataset -- `donorID_unified` where the file provides it, else
+`donor_id`, logging which. **Only the gut atlas provides it**; Tabula Sapiens
+and Cross-tissue Immune have `donor_id` only, so "use `donorID_unified`
+everywhere" is not literally achievable and the resolution is documented
+instead of faked.
+
+Scope of the re-run:
+- **Gut atlas recomputed** (both datasets; 185->175 and 308->271 donors), since
+  chunking is per-donor and the grouping itself had to change.
+- **Tabula Sapiens / Cross-tissue Immune not recomputed** -- no unified column
+  exists, their semantics are unchanged, and re-running them would have cost a
+  full pipeline pass for a guaranteed-identical result.
+- `combined_celltype_means.parquet` rebuilt from the three per-collection files
+  by a new `scripts/rebuild_combined.py` (streaming concat, schemas verified
+  identical first). This was necessary because `compute_means.py` writes the
+  per-collection and combined files in one pass, so a partial re-run would
+  otherwise have truncated `combined` to just the re-run datasets -- hence the
+  new `--skip-combined` flag.
+- Downstream re-run: `query_antxr2_table.py`, `plot_ecm_clearance_heatmap.py`,
+  and both co-expression variants.
+
+**One deliberate wart:** the output column is still named `donor_id` but now
+holds `donorID_unified` for gut rows and `donor_id` elsewhere. Adding a
+provenance column instead would have broken schema compatibility with the two
+collections that were not re-run, and `combined` is a plain concatenation that
+depends on one shared schema. Documented prominently in the output README
+(caveat 5) rather than left to be discovered; filter on `collection_name` if the
+distinction matters.
+
+**Re-verified after the re-run: every headline conclusion is unchanged.** Only
+donor counts moved. The paralog co-presence statistics reproduce almost exactly
+(Pearson r 0.326 -> 0.324, R² 0.106 -> 0.105, OLS slope 0.190 -> 0.189,
+residual scatter 5.4x both times, 10 of 238 cell types discordant both times,
+atlas median log-ratio +0.42 both times). The gut-epithelium signal holds
+(goblet +1.08, crypt stem +1.21 -> +1.28, enterocyte +2.12 -> +2.09, colonocyte
++2.15, small-intestine tuft +1.64 -> +1.63), as does the gingival-fibroblast
+counter-example (-0.55 -> -0.54). The generic `enterocyte` label still ranks
+150th of 238.
+
+What did change is `n_donors` throughout -- e.g. fibroblast 179 -> 159,
+macrophage 187 -> 173, enterocyte 142 -> 131, intestine goblet cell 194 -> 182 --
+and total row count, 351,128,441 -> 338,470,470 (fewer, larger donor groups).
+So the correction mattered for *how confidently* each cell type is supported and
+for the validity of donor-level bootstrapping, not for the biology read off the
+means. Worth stating plainly rather than implying the re-run rescued a result.
+
+This is the third ID-level error in this project, after the barcode-derived
+donor recovery in the skin atlas and the mislabelled lamina-propria macrophage.
+The pattern is consistent: identifiers that look authoritative -- a Cell
+Ontology term, a `donor_id` column -- were wrong, and only cross-checking them
+against an independent signal (markers, age brackets, a unified id) caught it.
+
+### Level-3 variant -- narrower, cleaner populations (2026-09-02)
+
+Per user request, a second working set built from the authors' own
+`level_3_annot` rather than the CELLxGene-harmonised `cell_type`, which pools
+subtypes. Output `elmentaite2021_trio_level3.h5ad`, **56,882 cells, 34 donors
+shared across all three** (all donor counts by `donorID_unified`):
+
+| `level_3_annot` | cells | donors | ANTXR2 | ANTXR1 | MRC2 | COL1A1 |
+|---|---:|---:|---:|---:|---:|---:|
+| Enterocyte | 35,062 | 35 | 0.078 | 0.0008 | 0.0009 | 0.039 |
+| Crypt_fibroblast_PI16 | 18,867 | 37 | 0.278 | 0.343 | 0.422 | 27.97 |
+| Macrophage | 2,953 | 38 | 0.121 | 0.027 | 0.078 | 0.016 |
+
+All three still clear memento's 0.07 threshold. Two differences from the
+`celltype` variant that matter:
+
+- **`Crypt_fibroblast_PI16` is a single defined subtype**, not a mixture, and
+  carries visibly stronger signal across the whole axis of interest than the
+  pooled `fibroblast` (ANTXR2 0.278 vs 0.224, ANTXR1 0.343 vs 0.323, MRC2 0.422
+  vs 0.306). A better-defined comparator for co-expression. (The label is
+  `PI16`, the fibroblast marker gene -- there is no `PI1` label in this atlas.)
+- **`Macrophage` drops to 2,953 cells** (from 4,694), because the plain level-3
+  label excludes the `Macrophage_LYVE1` (1,436), `_TREM2` (527), `_MMP9` (295)
+  and `_CD5L` (10) subtypes that `cell_type` had merged in. The population is
+  measurably purer for it (COL1A1 0.016 vs 0.030), but it is now the smallest
+  group by a wide margin -- worth remembering when the 2D bootstrap arrives,
+  since correlation estimates are far more sample-hungry than means.
+
+Implemented by parameterising the existing script rather than forking it:
+`--variant` selects `label_col` + `labels` + output path from
+`config.COEXPR_VARIANTS`, and the README filename follows the variant. Both
+variants were re-run so they are mutually consistent; the `celltype` file's
+contents are unchanged.
+
+**Verification passed on both variants:** per-group counts and shared-donor
+counts as tabulated; counts integer with min-nonzero 1; no unused categoricals
+survive; `obsp` absent from the written files; both q columns in (0,1); ANTXR2
+means reproduce the values above; marker panel correct per group (notably
+`Macrophage` C1QA 96% / PTPRC 64% / COL1A1 1.5%, `Crypt_fibroblast_PI16`
+COL1A1 91% / PTPRC 0.2%, `Enterocyte` EPCAM 86%); and a memento smoke test
+(`setup_memento` + `create_groups` + `compute_1d_moments`) returns 3 groups with
+finite moments over all 18,370 genes.
+
 ## Open / next steps
 
 - Phase 1 (means only) is complete and verified. Phase 2 (variance /
   formal hypothesis testing via memento's `ht_1d_moments`) is not started.
+- **Co-expression point-estimate correlations are now run** (see "Phase 2:
+  co-expression analysis (test run)" below) — this resolves the gene-pair-
+  scoping decision that was previously open: `compute_2d_moments`'s
+  ANTXR2-vs-all pairs use every gene in the `level3` variant's global
+  `filter_mean_thresh`-filtered gene list (4,009 genes), not a curated seed
+  panel. Point estimates only — `binary_test_2d`/`ht_2d_moments` (bootstrap
+  hypothesis testing) are still not run; that remains open if a formal
+  significance test on specific gene pairs becomes the next question.
+- The macrophage statistical-power risk flagged below was confirmed sharply in
+  the run above: only 5 of 38 donors survive the 100-cell floor for
+  macrophage (vs. 21 fibroblast, 28 enterocyte), and its top correlations
+  (several exactly 1.000) are likely an artifact of that small n combined
+  with several donor groups where ANTXR2 is barely detected. If macrophage
+  co-expression becomes load-bearing for a real question, revisit the
+  `celltype` variant's pooled macrophage (4,694 cells) mentioned below rather
+  than trusting the `level3` numbers as-is.
+- Disease contrast for co-expression still needs Kong2023 (within-study
+  inflamed vs. healthy, 22,101 `Non_pathological` / 49,743
+  `Neighbouring_inflamed` / 7,491 `Inflamed`, 42 donors). Elmentaite2021 cannot
+  provide it — every sample there is `Non_pathological`.
 - The stem-vs-differentiated gut epithelium comparison above is suggestive but
   informal (means only, no significance test) -- worth a proper memento
   `binary_test_1d` comparison (stem/TA vs. differentiated enterocyte) if this
@@ -248,3 +673,184 @@ level of granularity is silently lost.
   source studies (`Ganier`, `Sole-Boldo`) remain at coarse `source_study`-level by
   choice, not oversight -- if either becomes load-bearing for a specific Phase 2
   question, the `Ganier` ~90%-clean subset is a plausible target for a real fix.
+- Paralog co-presence + ECM-clearance heatmap (see section above) is a
+  means-level descriptive figure, not a significance test -- the MRC2-absent-
+  in-gut finding and the skin-fibroblast redundancy counter-evidence are both
+  suggestive, not formally tested. A real memento `binary_test_1d` (gut
+  epithelium vs. other epithelium, on MRC2 specifically) would close that gap
+  cheaply, same pattern as the stem-vs-differentiated item above.
+- The "what else is ANTXR2 doing in gut epithelium if not collagen-VI
+  clearance" question is still open -- flagged but not chased this session.
+  A positive/co-presence screen (what other genes' cell-type means correlate
+  *with* ANTXR2's specifically in gut epithelium, genome-wide or against a
+  candidate list -- still cell-type-level, not single-cell) is the natural
+  next move if this becomes a specific question to pursue, as opposed to the
+  MRC2 check's absence-focused approach.
+
+## Phase 2: co-expression analysis (test run)
+Ran `scripts/coexpression_pipeline.py` on the `level3` trio working set (/data/ANTXR2/coexpression/elmentaite2021_trio_level3.h5ad) -- the test run planned in `planning_summaries/coexpression.md`. Point estimates only (memento's `compute_1d_moments`/`compute_2d_moments`/`get_corr_matrix`), no bootstrap/hypothesis testing. Output: `/data/ANTXR2/coexpression/elmentaite2021_trio_level3_coexpr.h5ad` (a NEW file -- the source h5ad is untouched), figures in `/data/ANTXR2/figures/coexpression/`.
+### Parameters
+- Donor column: `obs['donor']` (not `donor_id` -- see donor-identity note in the Phase 2 prep section above)
+- Capture rate: `obs['capture_rate_pbmc']`, passed via memento's `q_column` (NOTE: only 2 distinct values across all cells -- a per-assay constant, not continuous per-cell; expected, see prep notes)
+- Minimum group size: 100 cells per donor x cell_type group
+- Gene filter (memento defaults, recorded explicitly): `filter_mean_thresh=0.07`, `min_perc_group=0.7`
+- Ranking: top 50 genes per cell type by |donor-averaged correlation|
+- Averaging across donors: plain unweighted mean over non-NaN donor values (same donor-equal-weighting convention as Phase 1's binding aggregation)
+
+### Donor x cell_type groups
+38 donors total. 56 of 110 existing groups fell below the 100-cell floor and were dropped:
+
+```
+donor  cell_type  n_cells
+   D1 fibroblast       18
+   D1 macrophage       87
+  D10 enterocyte       10
+  D10 fibroblast       47
+  D10 macrophage        6
+  D13 macrophage       28
+  D14 macrophage       31
+  D15 fibroblast       34
+  D15 macrophage       54
+ D150 fibroblast       10
+ D150 macrophage        9
+ D151 fibroblast        4
+ D151 macrophage       32
+ D152 enterocyte       43
+ D152 macrophage       96
+ D153 enterocyte       72
+ D153 fibroblast        4
+ D153 macrophage        4
+ D154 fibroblast       21
+ D154 macrophage       81
+ D155 fibroblast        1
+ D155 macrophage       31
+ D156 fibroblast       17
+ D156 macrophage       42
+   D2 fibroblast       33
+   D2 macrophage       38
+   D3 fibroblast       12
+   D3 macrophage       34
+   D4 fibroblast       20
+   D4 macrophage       72
+   D5 fibroblast       12
+   D5 macrophage       30
+   D6 fibroblast        2
+   D6 macrophage       12
+   D7 macrophage        7
+   D8 fibroblast        6
+   D8 macrophage       10
+   D9 macrophage       40
+   F1 enterocyte       14
+   F1 macrophage       27
+  F10 macrophage       97
+  F11 macrophage        3
+  F13 macrophage       78
+  F14 enterocyte        1
+  F14 macrophage        1
+   F2 macrophage        6
+   F3 macrophage       19
+   F4 enterocyte       18
+   F4 macrophage        1
+   F5 enterocyte        2
+   F5 fibroblast       38
+   F5 macrophage        9
+   F6 macrophage       24
+   F7 macrophage        1
+   F8 macrophage       45
+   F9 macrophage       67
+```
+
+Groups kept, by cell type:
+
+```
+cell_type
+enterocyte    28
+fibroblast    21
+macrophage     5
+```
+
+**Macrophage is severely thinned by the 100-cell floor** -- only 5 of 38 donors survive for macrophage (vs. 21 for fibroblast, 28 for enterocyte). Macrophage's donor-averaged correlations rest on a much smaller donor sample than the other two cell types -- treat any macrophage-specific finding here as exploratory, not confirmatory.
+
+### Gene filtering
+Global filtered gene list: 4009 / 18370 genes pass (`filter_mean_thresh > 0.07` in >70% of donor x cell_type groups). ANTXR2 survives the global filter (required for step 2 to run at all); per-group survival against ANTXR2's OWN group's mean-expression threshold is logged at run time. **Caveat, not a NaN case**: a group where ANTXR2 fails its own local mean filter still produces a numeric correlation there (memento only emits NaN when variance is exactly zero, which is stricter than failing the mean filter -- verified directly, e.g. sg^F3^enterocyte has ANTXR2 mean=4.6e-6, var=8.3e-11, both nonzero). That correlation is real output, not dropped, but is derived from near-undetected expression and is noisier than groups where ANTXR2 clears its own filter -- most relevant to the macrophage top-gene list below, whose correlation magnitudes (up to 1.000) likely reflect this combined with the small donor count (14 of the 54 kept groups fall in this low-expression category, listed at run time by group name).
+
+### Top ANTXR2-correlated genes per cell type (donor-averaged)
+
+**fibroblast** (top 10 of 50 shown, by |mean correlation|):
+
+```
+ rank gene_symbol  mean_corr  n_donors
+    1         C1D   0.688365        21
+    2        SDHD   0.667203        21
+    3       SH2B1   0.628330        21
+    4     TMEM208   0.626196        21
+    5     PPP1R11   0.622356        21
+    6     ADIPOR1   0.613340        21
+    7      PITHD1   0.605012        21
+    8        TPP1   0.601699        21
+    9        MOB2   0.597954        21
+   10       STK16   0.586686        21
+```
+
+**enterocyte** (top 10 of 50 shown, by |mean correlation|):
+
+```
+ rank gene_symbol  mean_corr  n_donors
+    1     TRPC4AP   0.620934        28
+    2        SBF2   0.618805        28
+    3       ROCK2   0.612711        28
+    4      LSM14A   0.611623        28
+    5       APLP2   0.598420        28
+    6      CTNND1   0.591493        28
+    7      ZFAND3   0.589756        28
+    8      PRKAB2   0.580358        28
+    9     SMPDL3A   0.579310        28
+   10        CD46   0.571864        28
+```
+
+**macrophage** (top 10 of 50 shown, by |mean correlation|):
+
+```
+ rank gene_symbol  mean_corr  n_donors
+    1     KAZALD1   1.000000         5
+    2        YAP1   1.000000         5
+    3      SEMA6D   1.000000         5
+    4       PTPRG   1.000000         5
+    5       NDEL1   1.000000         5
+    6        PHF1   0.963056         5
+    7        SCO1   0.954579         5
+    8       DCAF5   0.934275         5
+    9       UBTD2   0.932276         5
+   10         HGS   0.926760         5
+```
+
+Union panel: 146 genes (145 unique top-50 genes + ANTXR2).
+
+Pairwise overlap between cell types' top-gene lists:
+
+```
+fibroblast vs enterocyte: 4
+fibroblast vs macrophage: 1
+enterocyte vs macrophage: 0
+```
+
+### Package versions
+```
+anndata: 0.12.19
+scanpy: 1.11.5
+memento-de: 0.1.3
+```
+
+### Runtime (test-run trio: 56,882 cells x 18,370 genes)
+```
+1_load_and_filter: 4.3s
+2_compute_antxr2_correlations: 10.9s
+3_average_across_donors_1d: 0.0s
+4_select_top_genes: 0.0s
+5_compute_pairwise_correlations: 1.6s
+6_average_pairwise_across_donors: 0.0s
+7_write_output_and_figures: 40.2s
+total: 57.0s
+```
+
+Step 2 (ANTXR2 vs. all filtered genes) and step 5 (pairwise over the union panel) are the two that will scale with dataset size when this moves beyond the trio test run -- step 2 scales roughly with n_filtered_genes x n_groups, step 5 with n_union_genes^2 x n_groups (here n_union_genes is fixed at 146 regardless of dataset size, so step 5's cost is mostly driven by n_groups, i.e. how many donor x cell_type combinations exist).

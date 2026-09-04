@@ -48,7 +48,7 @@ import memento
 
 from config import (
     ASSAY_COL, CAPTURE_RATE_BY_ASSAY, CELL_TYPE_COL, CELL_TYPE_ID_COL,
-    DEFAULT_CAPTURE_RATE, DISEASE_COL, DONOR_COL, GENE_ID_COL, GENE_NAME_COL,
+    DEFAULT_CAPTURE_RATE, DISEASE_COL, DONOR_COL, DONOR_UNIFIED_COL, GENE_ID_COL, GENE_NAME_COL,
     MAX_CHUNK_CELLS, MEMENTO_MIN_CELL_COUNT, OUTPUT_DIR, RAW_DIR, TISSUE_COL,
     TISSUE_GENERAL_COL,
 )
@@ -271,7 +271,7 @@ def finalize_donor_df(df, true_donor_id, dataset_id, gene_name_by_id, manifest_r
     return df
 
 
-def process_dataset(manifest_row, writers, dry_run=False):
+def process_dataset(manifest_row, writers, dry_run=False, skip_combined=False):
     dataset_id = manifest_row["dataset_id"]
     collection_name = manifest_row["collection_name"]
     local_path = manifest_row["local_path"]
@@ -302,13 +302,28 @@ def process_dataset(manifest_row, writers, dry_run=False):
     collection_path = os.path.join(OUTPUT_DIR, f"{collection_name}_celltype_means.parquet")
     combined_path = os.path.join(OUTPUT_DIR, "combined_celltype_means.parquet")
 
+    # Prefer the atlas's deduplicated donor identity where it exists. In the gut
+    # atlas `donor_id` both merges two distinct people under one id and splits
+    # single people across several -- see config.DONOR_UNIFIED_COL for the
+    # specifics. Chunking on the resolved column is what makes each memento
+    # group one actual donor.
+    donor_col = DONOR_UNIFIED_COL if DONOR_UNIFIED_COL in obs.columns else DONOR_COL
+    if donor_col != DONOR_COL:
+        n_raw, n_res = obs[DONOR_COL].nunique(), obs[donor_col].nunique()
+        log.info(f"  donor identity: using {donor_col!r} ({n_res} donors) "
+                 f"instead of {DONOR_COL!r} ({n_raw})")
+    else:
+        log.info(f"  donor identity: {donor_col!r} ({obs[donor_col].nunique()} donors) "
+                 f"-- {DONOR_UNIFIED_COL!r} not present in this dataset")
+
     def flush_donor(true_donor_id, dfs):
         if not dfs:
             return 0
         combined = combine_weighted(dfs) if len(dfs) > 1 else dfs[0]
         final_df = finalize_donor_df(combined, true_donor_id, dataset_id, gene_name_by_id, manifest_row)
         writers.write(collection_path, final_df)
-        writers.write(combined_path, final_df)
+        if not skip_combined:
+            writers.write(combined_path, final_df)
         return len(final_df)
 
     t0 = time.time()
@@ -316,7 +331,7 @@ def process_dataset(manifest_row, writers, dry_run=False):
     n_rows_written = 0
     pending_donor = None
     pending_dfs = []
-    for chunk_label, true_donor_id, positions in build_donor_chunks(obs, DONOR_COL):
+    for chunk_label, true_donor_id, positions in build_donor_chunks(obs, donor_col):
         n_chunks += 1
         if true_donor_id != pending_donor:
             n_rows_written += flush_donor(pending_donor, pending_dfs)
@@ -361,6 +376,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset_ids", nargs="*", help="restrict to these dataset_id(s)")
     parser.add_argument("--dry-run", action="store_true", help="only check schema/raw-slot per dataset")
+    parser.add_argument("--skip-combined", action="store_true",
+                        help="write per-collection parquet only, not combined_celltype_means.parquet "
+                             "(use when re-running a subset of datasets, then rebuild combined with "
+                             "rebuild_combined.py -- otherwise combined would be truncated to just "
+                             "the datasets in this run)")
     args = parser.parse_args()
 
     manifest = read_manifest()
@@ -376,7 +396,8 @@ def main():
     total_rows = 0
     try:
         for row in manifest:
-            total_rows += process_dataset(row, writers, dry_run=args.dry_run) or 0
+            total_rows += process_dataset(row, writers, dry_run=args.dry_run,
+                                          skip_combined=args.skip_combined) or 0
     finally:
         writers.close_all()
     log.info(f"done, {total_rows} total rows written across all datasets")
