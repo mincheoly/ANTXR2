@@ -163,15 +163,18 @@ def load_and_filter(h5ad_path):
 # Step 2: ANTXR2 vs. every other filtered gene, per donor x cell_type group
 # ---------------------------------------------------------------------------
 
-def compute_antxr2_correlations(adata, target_id):
+def compute_antxr2_correlations(adata, target_id, min_perc_group, shrinkage, trim_percent):
     adata = adata.copy()
     adata.X = sp.csr_matrix(adata.X)
     original_var_index = adata.var.index.copy()
 
     memento.setup_memento(
         adata, q_column=Q_COLUMN, filter_mean_thresh=COEXPR_FILTER_MEAN_THRESH,
-        min_cell_count=COEXPR_MIN_GROUP_CELLS,
+        min_cell_count=COEXPR_MIN_GROUP_CELLS, shrinkage=shrinkage, trim_percent=trim_percent,
     )
+    n_ref_genes = len(adata.uns["memento"]["least_variable_genes"])
+    print(f"  size-factor reference set: {n_ref_genes} / {adata.shape[1]} genes "
+          f"(trim_percent={trim_percent} -> bottom {trim_percent*100:.0f}% by residual variance)")
     memento.create_groups(adata, label_columns=[COEXPR_DONOR_COL, "cell_type"])
     groups = adata.uns["memento"]["groups"]
     group_meta = memento.get_groups(adata)
@@ -179,7 +182,7 @@ def compute_antxr2_correlations(adata, target_id):
     print(f"  {len(groups)} donor x cell_type groups after create_groups "
           f"(min_cell_count={COEXPR_MIN_GROUP_CELLS})")
 
-    memento.compute_1d_moments(adata, min_perc_group=COEXPR_MIN_PERC_GROUP, filter_genes=True)
+    memento.compute_1d_moments(adata, min_perc_group=min_perc_group, filter_genes=True)
 
     # NB: adata.uns['memento']['gene_filter'] is never resliced after
     # compute_1d_moments's internal _inplace_subset_var call -- it stays keyed
@@ -193,7 +196,7 @@ def compute_antxr2_correlations(adata, target_id):
 
     gene_list = adata.uns["memento"]["gene_list"]
     print(f"\n  global filtered gene_list: {len(gene_list)} / {len(original_var_index)} genes "
-          f"(filter_mean_thresh={COEXPR_FILTER_MEAN_THRESH}, min_perc_group={COEXPR_MIN_PERC_GROUP})")
+          f"(filter_mean_thresh={COEXPR_FILTER_MEAN_THRESH}, min_perc_group={min_perc_group})")
     print("  per-group genes passing filter_mean_thresh, and ANTXR2 survival:")
     for g in groups:
         surv = "OK" if antxr2_survival[g] else "low-expression"
@@ -212,7 +215,7 @@ def compute_antxr2_correlations(adata, target_id):
     low_expr_groups = [g for g, ok in antxr2_survival.items() if not ok]
     if low_expr_groups:
         print(f"\n  NOTE: ANTXR2 is below its OWN group's mean-expression threshold (but "
-              f"survives the global >{COEXPR_MIN_PERC_GROUP*100:.0f}% threshold) in "
+              f"survives the global >{min_perc_group*100:.0f}% threshold) in "
               f"{len(low_expr_groups)} group(s): {low_expr_groups} -- these groups still "
               f"produce a numeric correlation (memento only NaNs when variance is exactly "
               f"zero, which is rarer than failing the mean filter), but that correlation "
@@ -228,6 +231,35 @@ def compute_antxr2_correlations(adata, target_id):
     memento.compute_2d_moments(adata, gene_pairs)
     moment_corr_df, _cell_counts = memento.get_2d_moments(adata)
     antxr2_gene_order = moment_corr_df["gene_2"].tolist()
+
+    # Patch a real bug in memento's _corr_from_cov (memento/estimator.py), used by
+    # compute_2d_moments/get_2d_moments: when either gene's variance is <=0 in a
+    # group (very common for lowly-expressed genes in small donor groups), the
+    # function's placeholder array (np.full(cov.shape, 5.0)) is never overwritten
+    # for that entry -- and the unconditional `corr[corr>1]=1` clip that follows
+    # then turns that leftover 5.0 placeholder into an indistinguishable fake
+    # correlation of exactly 1.0, instead of NaN. (get_corr_matrix's sibling
+    # function _hyper_corr_symmetric, used in step 5 below, does NOT have this bug
+    # -- it explicitly NaNs anything still outside [-1,1] after clipping, so this
+    # patch is specific to this compute_2d_moments path.) Verified empirically:
+    # every affected entry in every donor group checked was pinned at EXACTLY
+    # 1.0 (never close to it, never -1), and it accounted for up to 59% of pairs
+    # in the smallest donor groups -- which is what was driving the whole
+    # session's "correlation distribution centered well above zero" finding.
+    gene_pos = {g: i for i, g in enumerate(gene_list)}
+    antxr2_pos_in_list = gene_pos[target_id]
+    other_pos = np.array([gene_pos[g] for g in antxr2_gene_order])
+    n_bugged_total = 0
+    for g in groups:
+        var_g = adata.uns["memento"]["1d_moments"][g][1]  # aligned to gene_list order
+        degenerate = (var_g[antxr2_pos_in_list] <= 0) | (var_g[other_pos] <= 0)
+        vals = moment_corr_df[g].values.astype(float)
+        n_bugged_total += int(((vals == 1.0) & degenerate).sum())
+        vals[degenerate] = np.nan
+        moment_corr_df[g] = vals
+    print(f"\n  memento _corr_from_cov placeholder-clipping bug: {n_bugged_total} "
+          f"pair x group values were fake correlations of exactly 1.0 from <=0 "
+          f"variance -- corrected to NaN.")
 
     print("\n  NaN correlations per group (failed estimates, e.g. from sparsity):")
     by_donor = {ct: {} for ct in COEXPR_CELL_TYPES}
@@ -249,6 +281,7 @@ def compute_antxr2_correlations(adata, target_id):
         "by_donor": by_donor,
         "gene_list_size": len(gene_list),
         "gene_list_total": len(original_var_index),
+        "n_bugged_pairs_corrected": n_bugged_total,
     }
     return results
 
@@ -325,15 +358,24 @@ def select_top_genes(results, sym_map, target_id, top_n=COEXPR_TOP_N_GENES):
 # Step 5: pairwise correlations among the union panel, per donor x cell_type group
 # ---------------------------------------------------------------------------
 
-def compute_pairwise_correlations(raw_adata, union_ids):
+def compute_pairwise_correlations(raw_adata, union_ids, min_perc_group, shrinkage, trim_percent):
+    # NB: `sub` is already restricted to the ~150-gene union top-gene panel here,
+    # so the "least variable genes" reference set setup_memento builds for the
+    # size factor is drawn from that small, ANTXR2-correlation-biased panel, not
+    # a broad transcriptome sample -- a real inconsistency vs. step 2's full-
+    # transcriptome reference set. Widening trim_percent here still only ever
+    # draws from these ~150 genes; it does not fix that. Flagged, not fixed.
     sub = raw_adata[:, union_ids].copy()
     sub.X = sp.csr_matrix(sub.X)
     assert list(sub.var.index) == union_ids
 
     memento.setup_memento(
         sub, q_column=Q_COLUMN, filter_mean_thresh=COEXPR_FILTER_MEAN_THRESH,
-        min_cell_count=COEXPR_MIN_GROUP_CELLS,
+        min_cell_count=COEXPR_MIN_GROUP_CELLS, shrinkage=shrinkage, trim_percent=trim_percent,
     )
+    n_ref_genes = len(sub.uns["memento"]["least_variable_genes"])
+    print(f"  size-factor reference set: {n_ref_genes} / {sub.shape[1]} genes "
+          f"(drawn from the union panel only -- see note above)")
     memento.create_groups(sub, label_columns=[COEXPR_DONOR_COL, "cell_type"])
     groups = sub.uns["memento"]["groups"]
     group_meta = memento.get_groups(sub)
@@ -344,7 +386,7 @@ def compute_pairwise_correlations(raw_adata, union_ids):
     # dropped even if a specific group's own mean filter would otherwise exclude
     # them -- a gene failing in one group still gets a NaN-masked entry there via
     # memento's own var<=0 -> NaN handling in _corr_from_cov, not silent removal.
-    memento.compute_1d_moments(sub, min_perc_group=COEXPR_MIN_PERC_GROUP, filter_genes=False)
+    memento.compute_1d_moments(sub, min_perc_group=min_perc_group, filter_genes=False)
     assert list(sub.var.index) == union_ids, "filter_genes=False should not reorder/subset genes"
 
     by_donor = {ct: {} for ct in COEXPR_CELL_TYPES}
@@ -441,11 +483,59 @@ def plot_heatmaps(donor_avg_2d, union_ids, sym_map, target_id, out_dir):
         print(f"  wrote {path}")
 
 
+CELLTYPE_COLOR = {"fibroblast": "#2a78d6", "enterocyte": "#eb6834", "macrophage": "#1baf7a"}
+
+
+def plot_correlation_distribution(results, out_dir, tag="default"):
+    """KDE of the donor-averaged ANTXR2-vs-all-gene correlation, per cell type --
+    over the FULL tested gene universe (thousands of genes), not just the top-50
+    lists, so this shows the actual shape/center of the correlation distribution
+    memento produced, not a distribution pre-selected for extremity."""
+    import seaborn as sns
+
+    os.makedirs(out_dir, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    stats_rows = []
+    for ct in COEXPR_CELL_TYPES:
+        if ct not in results["donor_averaged_1d"]:
+            continue
+        vals = results["donor_averaged_1d"][ct]["mean_corr"]
+        vals = vals[~np.isnan(vals)]
+        color = CELLTYPE_COLOR[ct]
+        sns.kdeplot(vals, ax=ax, color=color, linewidth=2, label=ct, fill=True, alpha=0.12)
+        mean_v, median_v = float(np.mean(vals)), float(np.median(vals))
+        ax.axvline(mean_v, color=color, linestyle="--", linewidth=1, alpha=0.7)
+        stats_rows.append({
+            "cell_type": ct, "n_genes": len(vals), "mean": mean_v, "median": median_v,
+            "std": float(np.std(vals)), "frac_positive": float((vals > 0).mean()),
+        })
+        print(f"  {ct}: n={len(vals)}  mean={mean_v:.4f}  median={median_v:.4f}  "
+              f"std={np.std(vals):.4f}  frac_positive={float((vals > 0).mean()):.3f}")
+
+    ax.axvline(0, color="#333333", linewidth=1)
+    ax.set_xlabel("donor-averaged ANTXR2-vs-gene correlation (memento point estimate)")
+    ax.set_ylabel("density")
+    ax.set_title(f"Distribution of ANTXR2's correlation with every tested gene, by cell type [{tag}]\n"
+                  "(dashed line = that cell type's mean; solid black = zero)", fontsize=10)
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    path = os.path.join(out_dir, f"antxr2_correlation_distribution_{tag}.png")
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    print(f"  wrote {path}")
+
+    stats_df = pd.DataFrame(stats_rows)
+    csv_path = os.path.join(out_dir, f"antxr2_correlation_distribution_stats_{tag}.csv")
+    stats_df.to_csv(csv_path, index=False)
+    print(f"  wrote {csv_path}")
+    return stats_df
+
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
-def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, versions):
+def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, versions, min_perc_group, shrinkage, trim_percent):
     n_donors_total = report["crosstab"].shape[0]
     lines = []
     lines.append("\n## Phase 2: co-expression analysis (test run)\n")
@@ -465,11 +555,44 @@ def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, ve
                   f"(NOTE: only {report['capture_rate_n_distinct']} distinct values across all cells -- "
                   f"a per-assay constant, not continuous per-cell; expected, see prep notes)\n")
     lines.append(f"- Minimum group size: {COEXPR_MIN_GROUP_CELLS} cells per donor x cell_type group\n")
-    lines.append(f"- Gene filter (memento defaults, recorded explicitly): "
-                  f"`filter_mean_thresh={COEXPR_FILTER_MEAN_THRESH}`, `min_perc_group={COEXPR_MIN_PERC_GROUP}`\n")
+    lines.append(f"- Gene filter: "
+                  f"`filter_mean_thresh={COEXPR_FILTER_MEAN_THRESH}` (memento default), "
+                  f"`min_perc_group={min_perc_group}` (strict/default -- reverted after a "
+                  f"min_perc_group=0.25 experiment let in thousands of near-undetected genes "
+                  f"whose \"correlations\" were sparsity artifacts, e.g. a gene with 0 nonzero "
+                  f"cells in macrophage still returning r=1.000)\n")
+    lines.append(f"- Size factor: `shrinkage={shrinkage}` (memento default is 0.5; this pipeline "
+                  f"uses 0 -- unshrunk per-cell size factor), `trim_percent={trim_percent}` "
+                  f"(memento default is 0.1; this pipeline broadens the size-factor reference gene "
+                  f"set to the bottom 50% by residual variance). Both were adopted after directly "
+                  f"testing that they measurably reduced (but did not fully explain) a systematic "
+                  f"positive offset in the correlation distribution -- see the bug below for the "
+                  f"rest of that offset.\n")
     lines.append(f"- Ranking: top {COEXPR_TOP_N_GENES} genes per cell type by |donor-averaged correlation|\n")
     lines.append(f"- Averaging across donors: plain unweighted mean over non-NaN donor values "
-                  f"(same donor-equal-weighting convention as Phase 1's binding aggregation)\n")
+                  f"(same donor-equal-weighting convention as Phase 1's binding aggregation). "
+                  f"**Known residual limitation**: this still gives a 118-cell donor group the same "
+                  f"vote as a 3,000-cell one, and correlation *variance* (not just the bug below) "
+                  f"is genuinely higher in small donor groups -- not fixed in this run.\n")
+
+    lines.append("\n### Estimator bug found and patched this run\n")
+    lines.append(
+        f"memento {versions.get('memento-de', '?')}'s `estimator._corr_from_cov` (used by "
+        f"`compute_2d_moments`/`get_2d_moments`, i.e. this script's step 2) initializes its "
+        f"output array to a placeholder value of `5.0`, then only overwrites entries where "
+        f"both genes have positive variance in that donor group; entries left at the "
+        f"placeholder get silently clipped to exactly `1.0` by the unconditional "
+        f"`corr[corr>1]=1` line that follows, instead of being set to NaN. (Its sibling "
+        f"`_hyper_corr_symmetric`, used by `get_corr_matrix` -- this script's step 5 -- does "
+        f"NOT have this bug: it explicitly NaNs anything still outside [-1,1] after clipping.) "
+        f"Verified empirically before patching: every affected entry in every donor group "
+        f"checked was pinned at EXACTLY 1.0 (never near it, never -1), accounting for up to "
+        f"59% of a 1000-random-gene-pair sample in the smallest donor groups and explaining "
+        f"essentially all of this project's earlier finding that the ANTXR2 correlation "
+        f"distribution sat well above zero. This run patches it by nulling out any pair-group "
+        f"value where either gene's group-level variance is <=0 before averaging across donors "
+        f"-- **{results.get('n_bugged_pairs_corrected', 0):,} pair x group values were "
+        f"corrected from a fake 1.0 to NaN** in this run.\n")
 
     lines.append("\n### Donor x cell_type groups\n")
     lines.append(f"{n_donors_total} donors total. {len(report['dropped_groups'])} of "
@@ -491,7 +614,7 @@ def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, ve
     lines.append(f"Global filtered gene list: {results['gene_list_size']} / "
                   f"{results['gene_list_total']} genes pass "
                   f"(`filter_mean_thresh > {COEXPR_FILTER_MEAN_THRESH}` in "
-                  f">{COEXPR_MIN_PERC_GROUP*100:.0f}% of donor x cell_type groups). "
+                  f">{min_perc_group*100:.0f}% of donor x cell_type groups). "
                   f"ANTXR2 survives the global filter (required for step 2 to run at all); "
                   "per-group survival against ANTXR2's OWN group's mean-expression threshold "
                   "is logged at run time. **Caveat, not a NaN case**: a group where ANTXR2 "
@@ -501,9 +624,10 @@ def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, ve
                   "sg^F3^enterocyte has ANTXR2 mean=4.6e-6, var=8.3e-11, both nonzero). That "
                   "correlation is real output, not dropped, but is derived from near-"
                   "undetected expression and is noisier than groups where ANTXR2 clears its "
-                  "own filter -- most relevant to the macrophage top-gene list below, whose "
-                  "correlation magnitudes (up to 1.000) likely reflect this combined with the "
-                  "small donor count.\n")
+                  "own filter -- most relevant to macrophage, which also has the smallest "
+                  "donor count of the three cell types (see the estimator bug section above "
+                  "for the separate, larger issue that used to additionally inflate many of "
+                  "these small-group correlations to a fake exact 1.000, now patched).\n")
 
     lines.append("\n### Top ANTXR2-correlated genes per cell type (donor-averaged)\n")
     for ct, top in results["top_genes"].items():
@@ -540,9 +664,53 @@ def write_summary(report, results, donor_avg_2d, target_id, sym_map, timings, ve
 # ---------------------------------------------------------------------------
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--min-perc-group", type=float, default=COEXPR_MIN_PERC_GROUP,
+                     help=f"fraction of donor x cell_type groups a gene must clear "
+                          f"filter_mean_thresh in to enter the tested universe "
+                          f"(memento default / this project's prior run: {COEXPR_MIN_PERC_GROUP}). "
+                          f"Lower to admit more sparsely-detected genes (e.g. cell-type-restricted "
+                          f"markers like ANTXR1/MRC2/CTSK, which are well-expressed in fibroblast "
+                          f"but near-absent in enterocyte/macrophage and so fail the pooled-across-"
+                          f"cell-types default of 0.7).")
+    ap.add_argument("--shrinkage", type=float, default=0.0,
+                     help="memento setup_memento's size-factor shrinkage (memento's own default is "
+                          "0.5; this pipeline's adopted default is 0.0, chosen after this project's "
+                          "own investigation -- see ANALYSIS_SUMMARY.md). The size factor used "
+                          "throughout the correlation math is Nrc/median(Nrc) over the least-"
+                          "variable-gene subset, then (if shrinkage>0) Nrc is shifted up by "
+                          "np.quantile(Nrc, shrinkage) before that ratio is taken -- compressing "
+                          "the relative spread of per-cell size factors. shrinkage=0 uses the "
+                          "unshrunk per-cell size factor as-is; empirically this materially reduced "
+                          "(but did not fully explain) the correlation distribution's positive "
+                          "offset from zero -- the dominant remaining cause turned out to be a "
+                          "separate memento estimator bug, patched in compute_antxr2_correlations.")
+    ap.add_argument("--trim-percent", type=float, default=0.5,
+                     help="memento setup_memento's trim_percent (memento's own default is 0.1; this "
+                          "pipeline's adopted default is 0.5). Sets the quantile cutoff on per-gene "
+                          "residual variance (computed across ALL cells with a naive size factor) "
+                          "used to pick the 'least variable genes' reference set that the actual "
+                          "size factor is estimated from -- memento's default keeps only the bottom "
+                          "10%% by residual variance. 0.5 broadens that to the bottom 50%%, which "
+                          "empirically balanced further reducing fibroblast/enterocyte's offset "
+                          "against re-destabilizing macrophage (trim_percent=1.0, using every gene, "
+                          "made macrophage's distribution bimodal and noisier -- see "
+                          "ANALYSIS_SUMMARY.md).")
+    ap.add_argument("--skip-summary-append", action="store_true",
+                     help="don't append a new section to ANALYSIS_SUMMARY.md (use when manually "
+                          "reconciling results from a rerun into an existing section instead)")
+    args = ap.parse_args()
+    min_perc_group = args.min_perc_group
+    shrinkage = args.shrinkage
+    trim_percent = args.trim_percent
+
     print(f"=== ANTXR2 co-expression pipeline ===")
     print(f"input: {INPUT_H5AD}")
     print(f"output: {COEXPR_OUTPUT_H5AD}")
+    print(f"min_perc_group: {min_perc_group} (default {COEXPR_MIN_PERC_GROUP})")
+    print(f"shrinkage: {shrinkage} (pipeline default 0.0, memento's own default is 0.5)")
+    print(f"trim_percent: {trim_percent} (pipeline default 0.5, memento's own default is 0.1)")
 
     versions = {
         "anndata": pkg_version("anndata"),
@@ -556,7 +724,7 @@ def main():
         sym_map = dict(zip(raw_adata.var.index, raw_adata.var[GENE_NAME_COL].astype(str)))
 
     with step_timer("2_compute_antxr2_correlations"):
-        results = compute_antxr2_correlations(raw_adata, target_id)
+        results = compute_antxr2_correlations(raw_adata, target_id, min_perc_group, shrinkage, trim_percent)
 
     with step_timer("3_average_across_donors_1d"):
         results = average_across_donors_1d(results)
@@ -565,7 +733,7 @@ def main():
         results = select_top_genes(results, sym_map, target_id)
 
     with step_timer("5_compute_pairwise_correlations"):
-        pairwise_results = compute_pairwise_correlations(raw_adata, results["union_gene_ids"])
+        pairwise_results = compute_pairwise_correlations(raw_adata, results["union_gene_ids"], min_perc_group, shrinkage, trim_percent)
 
     with step_timer("6_average_pairwise_across_donors"):
         donor_avg_2d = average_pairwise_across_donors(pairwise_results)
@@ -606,7 +774,9 @@ def main():
                 "target_gene_id": target_id,
                 "min_group_cells": COEXPR_MIN_GROUP_CELLS,
                 "filter_mean_thresh": COEXPR_FILTER_MEAN_THRESH,
-                "min_perc_group": COEXPR_MIN_PERC_GROUP,
+                "min_perc_group": min_perc_group,
+                "shrinkage": shrinkage,
+                "trim_percent": trim_percent,
                 "top_n_genes": COEXPR_TOP_N_GENES,
                 "estimator_type": "hyper_relative",
                 "point_estimates_only": True,
@@ -636,7 +806,12 @@ def main():
             top.to_csv(csv_path, index=False)
             print(f"  wrote {csv_path}")
 
-    write_summary(report, results, donor_avg_2d, target_id, sym_map, TIMINGS, versions)
+    with step_timer("8_plot_correlation_distribution"):
+        run_tag = f"mpg{min_perc_group}_shrink{shrinkage}_trim{trim_percent}"
+        plot_correlation_distribution(results, COEXPR_FIGURES_DIR, tag=run_tag)
+
+    if not args.skip_summary_append:
+        write_summary(report, results, donor_avg_2d, target_id, sym_map, TIMINGS, versions, min_perc_group, shrinkage, trim_percent)
 
     print(f"\n=== done. total runtime {sum(TIMINGS.values()):.1f}s ===")
 

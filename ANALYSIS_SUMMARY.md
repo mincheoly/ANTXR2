@@ -854,3 +854,56 @@ total: 57.0s
 ```
 
 Step 2 (ANTXR2 vs. all filtered genes) and step 5 (pairwise over the union panel) are the two that will scale with dataset size when this moves beyond the trio test run -- step 2 scales roughly with n_filtered_genes x n_groups, step 5 with n_union_genes^2 x n_groups (here n_union_genes is fixed at 146 regardless of dataset size, so step 5's cost is mostly driven by n_groups, i.e. how many donor x cell_type combinations exist).
+
+## Correction: memento estimator bug was inflating every correlation above -- found, fixed, re-run (2026-09-04)
+
+The Phase 2 run above had a real problem: the ANTXR2-vs-gene correlation distribution sat well above zero in every cell type (fibroblast median 0.276, enterocyte 0.321, macrophage 0.186), and the effect got *worse* the smaller the donor group. Chasing this down (total UMI, the fetal/pediatric donor-cohort split, dissociation-stress genes, a fibroblast-only UMAP, per-donor leverage analysis, a 1000-random-gene-pair sanity check, a permutation null) eventually found the actual cause, and it wasn't biology or a normalization choice:
+
+**The bug**: memento 0.1.3's `estimator._corr_from_cov` (used by `compute_2d_moments`/`get_2d_moments`, i.e. step 2 of this pipeline) initializes its output array to a placeholder value of `5.0`, then only overwrites entries where *both* genes have positive variance in that donor group. Entries left at the placeholder -- which happens whenever either gene's variance estimate is `<=0`, common for lowly-expressed genes in small donor groups -- get silently clipped to exactly `1.0` by the unconditional `corr[corr>1]=1` line that follows, instead of being set to NaN as intended. (Its sibling function `_hyper_corr_symmetric`, used by `get_corr_matrix` -- step 5 of this pipeline -- does **not** have this bug: it explicitly NaNs anything still outside `[-1,1]` after clipping. The bug is specific to the `compute_2d_moments` path.)
+
+Verified directly before fixing anything: every affected entry, in every donor group checked, was pinned at **exactly** 1.0 (never near it, never -1 -- confirming a deterministic code path, not statistical noise). It accounted for up to **59% of a 1000-random-gene-pair sample** in the smallest donor groups (e.g. donor D152, 118 fibroblast cells) and a negligible ~0.6% in the largest (F13, 3,108 cells) -- a clean, monotonic relationship with donor group size that explained the entire earlier "positive skew" finding. Excluding just the bugged entries brought every donor's correlation distribution -- including the smallest ones -- back to roughly centered on zero (D152: fake median 1.000 -> real median -0.27).
+
+**Fix applied** (`compute_antxr2_correlations` in `scripts/coexpression_pipeline.py`): after `compute_2d_moments`, for every donor group, null out any pair where either gene's group-level variance is `<=0`, before averaging across donors. This run corrected **35,339 pair x group values** from a fake `1.0` to `NaN`.
+
+**Re-ran the full pipeline with the fix, plus the size-factor settings adopted earlier** (`shrinkage=0`, `trim_percent=0.5`, both now the pipeline's defaults -- memento's own defaults are 0.5 and 0.1 respectively; `min_perc_group` reverted to the strict default of 0.7). New distribution, over the full tested-gene universe (not just top-50):
+
+```
+cell_type   n_genes    mean    median    std    frac_positive
+fibroblast     3746   0.040     0.038   0.137          0.607
+enterocyte     3746   0.009     0.007   0.124          0.521
+macrophage     3744  -0.117    -0.130   0.347          0.353
+```
+
+Fibroblast and enterocyte are now both tightly centered almost exactly on zero. Macrophage sits slightly negative with much wider spread (std 0.35) -- consistent with its persistent small-donor-count problem (only 5 surviving donor groups), not a new bias.
+
+**New top-10 ANTXR2-correlated genes per cell type** (donor-averaged, bug-corrected; note the qualitatively different, more trustworthy character vs. the pre-fix table above -- realistic donor coverage for fibroblast/enterocyte, and a healthy mix of positive *and* negative signs where before almost everything was positive):
+
+```
+fibroblast          mean_corr  n_donors     enterocyte          mean_corr  n_donors
+1  PDCD6                0.540        12     1  PRPF31              -0.434        24
+2  MICU2                0.525        13     2  ZFAND3               0.415        21
+3  C11orf58             0.494        15     3  USE1                -0.392        24
+4  NDUFA5               0.466        15     4  PICALM               0.387        21
+5  SERINC1              0.464        16     5  WDR1                 0.376        23
+6  ADPGK                0.461        14     6  FAM3C                0.375        25
+7  BPNT2                0.451        17     7  CPD                  0.367        25
+8  TMEM87A              0.440        16     8  SNX15               -0.366        25
+9  MKRN1                0.436        15     9  CD164                0.365        24
+10 PITHD1               0.427        15     10 ANKHD1               0.359        23
+```
+
+Macrophage's top-10 still shows values up to exactly 1.000/-1.000, but this is no longer the bug -- these are now transparently backed by `n_donors` of 1-4 (e.g. IFT20 r=1.000 on n_donors=1, ECHS1 r=-1.000 on n_donors=4), a legitimate (if unreliable) small-sample point estimate rather than a hidden defect. Still exploratory-only for macrophage, as flagged throughout -- not confirmatory.
+
+**Implication for the ECM-clearance-panel question from earlier this session**: CTSB/LAMP1/ANTXR1/MRC2/CTSK/TIMP2/MMP14's correlations with ANTXR2, reported earlier as moderate-to-strong positive (CTSB 0.48, LAMP1 0.45, ANTXR1 0.35, etc.), were computed before this fix and are very likely inflated by the same bug -- not necessarily wrong in sign, but overstated in magnitude, and worth recomputing before drawing further conclusions from them.
+
+**Remaining known limitation, not fixed by this patch**: donor-equal-weighted averaging still gives a 100-cell donor group the same vote as a 3,000-cell one. The bug's *systematic* effect is now gone, but small donor groups still carry genuinely higher sampling *variance* in their correlation estimates than large ones -- visible in the per-donor boxplot from this session's random-gene-pair sanity check. Worth revisiting (e.g. weighting by donor group size, or a higher minimum-cell floor specific to correlation work) if this analysis is extended beyond the current trio test run.
+
+**Follow-up check: reverting shrinkage/trim_percent to memento's own defaults, with the bug fix still applied**, confirmed the size-factor settings were fixing a real, separate problem, not just masking the bug:
+
+```
+setting                                          fibroblast   enterocyte   macrophage
+memento defaults (shrinkage=0.5, trim_percent=0.1)    0.148        0.237        0.099
+this pipeline's defaults (shrinkage=0, trim_percent=0.5)  0.038        0.007       -0.130
+```
+
+(medians, bug fix applied in both cases). Even with the estimator bug patched, memento's own size-factor defaults leave fibroblast and enterocyte visibly, systematically shifted positive -- so the bug and the shrinkage/trim_percent choice were two distinct real problems, not one masquerading as the other, and both fixes are needed. Output on disk is confirmed at this pipeline's defaults (`shrinkage=0`, `trim_percent=0.5`, `min_perc_group=0.7`, bug fix applied).
