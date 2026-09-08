@@ -102,6 +102,31 @@ SKIN_MESSY_STUDIES = {"Ganier", "Sole-Boldo"}
 # different question and was never part of this list.
 GENE_PANEL = ["ANTXR1", "ANTXR2", "MRC2", "CTSB", "CTSK", "MMP14", "TIMP2", "LAMP1"]
 
+# --- Two-arm partner-availability panel (prompts/partner_availability.md, Task 3) ---
+#
+# ANTXR2/CMG2 has two separable functions with different partner requirements:
+# collagen-VI clearance (MRC2 + lysosomal machinery + substrate) and Wnt signal
+# transduction (LRP6 + Frizzled). GENE_PANEL above tests only the clearance
+# arm's machinery -- not its substrate, and not the Wnt arm at all. Kept as a
+# SEPARATE dict of named sub-panels (not folded into GENE_PANEL) so the
+# original 8-gene panel and its heatmap stay untouched; EXTENDED_GENE_PANEL
+# below is the flat query list derived from it.
+GENE_PANEL_ARMS = {
+    "RECEPTORS": ["ANTXR1", "ANTXR2"],
+    "CLEARANCE_ARM": ["MRC2", "CTSB", "CTSK", "MMP14", "TIMP2", "LAMP1"],
+    # the clearance arm's substrate -- the panel tested everything except
+    # whether collagen VI itself is present.
+    "CLEARANCE_SUBSTRATE": ["COL6A1", "COL6A2", "COL6A3"],
+    # LRP6 + Frizzled assembly (Wnt receptor complex), downstream beta-catenin
+    # transduction/destruction-complex components, and injury-induced stem-cell
+    # renewal markers (Bracq et al. 2025).
+    "WNT_ARM": (
+        ["LRP5", "LRP6"] + [f"FZD{i}" for i in range(1, 11)]
+        + ["CTNNB1", "TCF7L2", "LGR5", "RNF43", "ZNRF3", "AXIN2"]
+    ),
+}
+EXTENDED_GENE_PANEL = [g for arm in GENE_PANEL_ARMS.values() for g in arm]
+
 FIGURES_DIR = "/data/ANTXR2/figures"
 
 # --- Phase 2 prep: single-cell co-expression working set -----------------------

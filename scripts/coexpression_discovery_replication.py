@@ -90,12 +90,16 @@ def split_donors(sub_full, donor_col):
     return donors_sorted[0::2], donors_sorted[1::2]  # round-robin by cell count -> balanced power
 
 
-def run_discovery_ht(full, ct, disc, num_boot, num_cpus, random_state):
+def run_discovery_ht(full, ct, disc, num_boot, num_cpus, random_state, target_symbol=None):
+    """target_symbol defaults to COEXPR_TARGET_GENE (ANTXR2) -- overridable so
+    the identical pipeline can be run for an arbitrary anchor gene (see
+    anchor_gene_control.py, prompts/partner_availability.md Task 2)."""
+    target_symbol = target_symbol or COEXPR_TARGET_GENE
     label = LEVEL3_LABEL[ct]
     adata = full[(full.obs["level_3_annot"].astype(str) == label) & (full.obs[DONOR_COL].isin(disc))].copy()
     adata.obs[DONOR_COL] = adata.obs[DONOR_COL].astype(str)
     sym_to_id = dict(zip(adata.var[GENE_NAME_COL].astype(str), adata.var.index))
-    target_id = sym_to_id[COEXPR_TARGET_GENE]
+    target_id = sym_to_id[target_symbol]
 
     adata.X = sp.csr_matrix(adata.X)
     memento.setup_memento(adata, q_column=Q_COLUMN, filter_mean_thresh=FILTER_MEAN_THRESH,
@@ -115,12 +119,12 @@ def run_discovery_ht(full, ct, disc, num_boot, num_cpus, random_state):
         gene_list = adata_f.uns["memento"]["gene_list"]
         present = target_id in gene_list
         print(f"  {len(groups)} discovery donor groups, {len(gene_list)} genes pass global filter "
-              f"(min_perc_group={mpg:.2f}), ANTXR2 present: {present}")
+              f"(min_perc_group={mpg:.2f}), {target_symbol} present: {present}")
         if present or mpg <= 0.15:
             break
         mpg -= 0.1
     if target_id not in gene_list:
-        raise SystemExit(f"{ct}: ANTXR2 filtered out of discovery-half gene list even at min_perc_group=0.15")
+        raise SystemExit(f"{ct}: {target_symbol} filtered out of discovery-half gene list even at min_perc_group=0.15")
 
     test_genes = [g for g in gene_list if g != target_id]
     gene_pairs = [(target_id, g) for g in test_genes]

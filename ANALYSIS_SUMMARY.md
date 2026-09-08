@@ -1,4 +1,274 @@
-# ANTXR2 Phase 1 -- session summary
+# ANTXR2 project -- analysis summary
+
+> **READ THIS SECTION FIRST.** Everything below the `---` divider is a
+> **chronological session log**, appended to over many sessions. This top
+> section is the **durable framing**: the question the project is answering,
+> what each kind of evidence can and cannot establish, and corrections that
+> must survive session handoff.
+>
+> **If a later section of the log contradicts this section, this section
+> wins**, unless it has been explicitly amended here. Framing drift across
+> sessions has already happened at least once (see "Standing corrections /
+> collagen" below) -- this header exists to stop it recurring.
+
+## Central question
+
+ANTXR2/CMG2 has **at least two separable molecular functions with different
+partner requirements**:
+
+1. **Collagen-VI clearance** -- receptor-mediated endocytosis and lysosomal
+   degradation of collagen VI and other hyaline proteins (Bürgi et al. 2017).
+   Requires MRC2 + lysosomal/proteolytic machinery + the substrate itself.
+2. **Wnt signal transduction** -- CMG2 complexes with LRP6, which assembles
+   with Frizzled receptors to bind Wnt ligands (Abrami et al. 2008; Wei et al.
+   2006). Required for **injury-induced** intestinal stem-cell renewal: in
+   CMG2-KO mice the fetal-like reversion after DSS damage occurs normally, but
+   the fetal-like → Lgr5+ transition fails (β-catenin nuclear translocation),
+   causing failed epithelial restitution (Bracq et al. 2025, EMBO Mol Med).
+   Requires LRP6 + Frizzled. **Baseline guts of CMG2-KO mice are normal** --
+   this function is conditional on injury.
+
+**The project asks: which cell types (and cell states) have the partners for
+which function, and does that partition predict HFS's tissue-restricted
+phenotype?**
+
+The germline LoF is present in every cell; the phenotype is not (skin nodules,
+gingiva, joints, gut, uterus). **Partner availability is a transcriptionally
+readable explanation for that gap.** This is why atlas data is the right
+instrument for this question, and why no causal identification is required.
+
+This framing supersedes the earlier "tissue-restriction paradox" phrasing
+(`planning_summaries/planning.md`) -- same question, but now with a specific
+mechanistic axis (which function, gated by which partners) rather than an
+open-ended one.
+
+## What each kind of evidence can establish
+
+Stated explicitly because the project has repeatedly slipped between these,
+and they carry very different weight.
+
+| Evidence | Claim it supports | Strength |
+|---|---|---|
+| **Cell-type mean expression** | Partner is *present* (or absent) in the cell type | **Strongest.** Often sufficient on its own. |
+| **Single-cell correlation** | Either co-occupancy (same cells) **or** co-regulation (shared program) -- both interesting | **Moderate.** Needs a specificity floor; see below. |
+| **Neither** | Physical protein interaction, or that a function is actually *occurring* | **Not reachable with this data.** |
+
+**The inference is asymmetric, and the negative direction is much stronger:**
+
+- **Partners absent → that function cannot operate.** Strong, needs only
+  means, survives every confound raised so far. This is the direction the
+  project's best result runs in (MRC2 at detection floor in gut epithelium).
+- **Partners present → the function is *available*, not that it happens.**
+  Weak. This is where all the confounding lives.
+
+**On correlation specifically.** A significant correlation implies either
+co-occupancy or co-regulation, and both are findings -- the disjunction does
+not need to be resolved to have learned something. But there is a third,
+uninteresting branch: **nonspecific covariation** (shared activation state,
+cell size, depth), where both genes rise together because the cell is doing
+more of everything. Excluding that branch is the entire job of the
+**anchor-gene specificity control** (see "Designed but never run"). It does
+not test whether correlation exists; it establishes what an expression-matched
+arbitrary gene's correlation looks like in that cell type, so that anything
+above the floor is in the two interesting branches.
+
+Note that correlation and co-presence are **not the same statistic**. Two genes
+expressed in every cell at stable levels have perfect co-presence and zero
+correlation -- no variance to co-vary. Correlation is informative about joint
+occupancy only when expression is patchy/bimodal; for near-uniformly expressed
+partners, the mean already settles availability and correlation adds nothing.
+**Check each panel gene's expression distribution before treating its
+correlation as a co-presence readout.**
+
+memento is comparatively well suited to the co-occupancy branch, since it
+estimates the correlation of *true* expression with sampling noise modeled --
+which is exactly the noise that flattens patchy-expression correlations in raw
+counts.
+
+**The two interesting branches are partly separable empirically.** If a
+correlation is driven by subset structure (both genes on in subpopulation S,
+off outside it), conditioning on S should collapse it -- within S there is no
+remaining joint on/off variation. If it is graded co-regulation, it persists
+within S. Attenuation implicates co-occupancy; persistence implicates
+co-regulation. Same conditioning machinery as the cell-state control, pointed
+at a different question.
+
+## Standing corrections (carry these forward)
+
+- **Collagen genes are NOT a positive control.** Bürgi et al. 2017 showed
+  collagen VI **mRNA does not change** in Antxr2−/− uteri -- the mechanism is
+  degradation, not transcription. An ANTXR2–COL6 positive correlation
+  therefore **cannot validate that the pipeline detects ANTXR2's known
+  function**, because a positive control must be able to fail. It remains
+  entirely compatible with genuine co-regulation under shared ECM-program
+  pressure, which is interesting -- **report it as co-regulation evidence, not
+  as confirmation that the pipeline works.** (This correction was established
+  in `planning_summaries/planning.md` and then lost: the 2026-09-05 z-score
+  GSEA section originally described the fibroblast ECM result as the project's
+  cleanest confirmation of a real signal. Amended in place; see that section.)
+
+- **Anti-correlation is the stronger result class.** Shared-activation-state
+  confounding inflates positive correlations but **cannot manufacture mutual
+  exclusivity**. Negative findings run against the confound and must not be
+  demoted relative to positive ones. Corollary: a significant anti-correlation
+  is interpretable **without** the anchor-gene floor; a positive one is not.
+
+- **Co-presence is not redundancy.** Redundancy requires *shared function*.
+  Skin fibroblasts show robust ANTXR1 co-presence and have HFS's most visible
+  pathology; the paralogs bind different collagen VI domains (triple-helical
+  vs C5). **No composite "vulnerability score", ever.** Show raw ingredients
+  side by side.
+
+- **Positive correlations require the anchor-gene specificity control.**
+  **RUN 2026-09-06** (`scripts/anchor_gene_control.py`, prompts/partner_availability.md
+  Task 2; see the "Task 2 results" section for full detail) -- outcome differs
+  by cell type and must not be treated uniformly:
+  - **Fibroblast ECM/collagen correlation SURVIVES the control.** No key term
+    (Extracellular Matrix Organization, ECM-receptor interaction, Collagen
+    Formation, Focal adhesion) is recovered by a majority of 20
+    expression/detection-matched anchor genes (6-10/20 recover any one term);
+    ANTXR2 sits at the 80th-100th percentile of the anchor NES distribution
+    for all four. Still co-regulation evidence, not a positive control and
+    not a causal claim (see the item above) -- but no longer merely
+    "ungated exploratory GSEA": this is now the project's best-supported
+    positive-correlation finding.
+  - **Enterocyte digestion/absorption correlation DOES NOT SURVIVE the
+    control, and this reframes that finding.** A MAJORITY of anchors recover
+    both "Protein digestion and absorption" (17/20) and "Fat digestion and
+    absorption" (16/20) at the same FDR threshold ANTXR2 was judged at,
+    with ANTXR2 only at the 90th/95th percentile of a distribution whose mean
+    (1.6-1.8) is already strongly positive. **This correlation is a property
+    of enterocyte's transcriptional program at ANTXR2's expression level, not
+    specific evidence about ANTXR2** -- any gene expressed like ANTXR2 in
+    enterocytes tends to travel with digestion/absorption genes, which is
+    exactly what you'd expect from a highly polarized secretory/absorptive
+    epithelial cell where most moderately-expressed genes covary with the
+    dominant differentiation program. This does NOT bear on the separate,
+    means-level, formally-tested finding that ANTXR2 itself is higher in
+    differentiated enterocyte than crypt stem/TA (Task 4.2) -- that is a
+    presence/gradient claim, not a co-regulation claim, and stands on its own.
+
+- **|z| correlates with mean expression (Task 2, step 6 check).** r=0.44
+  (fibroblast) / 0.37 (enterocyte) between log10 mean expression and |z|
+  across each cell type's full tested universe. A real, moderate confound --
+  treat z-score-ranked GSEA (`gsea_zscore/`) as somewhat expression-level-
+  biased in both tails, on top of the co-regulation-vs-coincidence caveat
+  above. The anchor-gene matching controls for this specifically in the
+  recovery-count comparisons above (anchors are expression/detection-matched
+  to ANTXR2), which is why those comparisons are trustworthy despite the
+  confound existing in the underlying ranking.
+
+- **Doublets inflate cross-cell-type positive correlations.** Probably handled
+  by atlas QC, but would specifically inflate ANTXR2–ANTXR1 if
+  fibroblast-epithelial doublets survived. Verify before interpreting a
+  positive paralog correlation.
+
+- **Exploratory vs confirmatory analyses must be labeled.** GSEA over the full
+  ranked universe is **exploratory characterization** of what ANTXR2 travels
+  with. Pre-defined panel tests are **confirmatory partner-availability
+  checks**. A GSEA term is not a tested claim. The two GSEA atlases (`gsea/`,
+  `gsea_zscore/`) are exploratory throughout.
+
+- **Macrophage is exploratory-only, everywhere, permanently.** 5 donors; the
+  discovery/replication split found sign concordance indistinguishable from
+  chance (66.7%, binomial p=0.25, negative effect-size correlation). Its
+  z-score GSEA looks *better* than its mean-ranked GSEA for a specific and
+  misleading reason -- see the 2026-09-05 section.
+
+## Designed but never run (authoritative open list)
+
+These are ranked. The list at "## Open / next steps" mid-log is older and
+narrower; **this list supersedes it.**
+
+**Items 1-5 below were RUN 2026-09-06** (`prompts/partner_availability.md`, `scripts/paralog_readout.py` / `anchor_gene_control.py` / `two_arm_panel_query.py` / `binary_tests.py` / `kong2023_feasibility.py`) -- kept here with their original rationale for context, but see the "Task 1-5 results" sections in the session log below for outcomes. Items 6-8 remain genuinely open.
+
+1. **ANTXR1/ANTXR2 single-cell co-expression -- the project's original primary
+   analysis, never executed.** `planning.md` ranked paralog partitioning as
+   the strongest sub-hypothesis, and the entire stated rationale for Phase 2
+   was that means establish presence while only correlation distinguishes
+   "both paralogs in every cell" from "two disjoint subpopulations". Phase 2
+   ran ANTXR2-vs-all-genes and this specific question was never asked.
+   **ANTXR1's post-bug-fix `coef`/`se`/`z`/`fdr` already exist** in
+   `full_dataset_ht/{cell_type}_full_dataset_ht.csv` and have never been read
+   out. The only ANTXR1 value ever discussed (0.35) is pre-bug-fix and known
+   inflated. Near-zero cost. **Pre-register the asymmetry before looking:** a
+   significant negative is real evidence of mutual exclusivity; a null is
+   uninformative, *not* evidence of co-presence.
+
+2. **Anchor-gene specificity control.** ~20 expression- and detection-matched
+   genes through the identical pipeline, per cell type, to establish the
+   nonspecific-covariation floor. Gates every positive correlation claim in
+   the project, including the fibroblast ECM result and the enterocyte
+   digestion/absorption result. Also required to make the enterocyte *negative*
+   interpretable -- you cannot call a module absent without knowing what a null
+   module looks like there.
+
+3. **Extend the gene panel to the Wnt arm.** The current 8-gene panel
+   (`ANTXR1, ANTXR2, MRC2, CTSB, CTSK, MMP14, TIMP2, LAMP1`) covers only the
+   clearance function. Partner availability for the *other* function is
+   untestable without: `LRP5, LRP6, FZD1-10, CTNNB1, TCF7L2, LGR5, RNF43,
+   ZNRF3, AXIN2`. Also add `COL6A1, COL6A2, COL6A3` -- the clearance arm's
+   substrate, currently missing from a panel that tests everything except
+   whether the substrate is there. Pure query against already-computed parquet;
+   same pattern as `scripts/gene_panel_query.py`.
+
+4. **Formal tests for the two means-level claims.** `binary_test_1d` on MRC2
+   (gut epithelium vs lineage-matched keratinocyte/corneal epithelium), and on
+   ANTXR2 (crypt stem/TA vs differentiated enterocyte). The second is now
+   load-bearing: Lencer's commentary on Bracq et al. proposes that CMG2's
+   context-specific role may reflect the diminishing Wnt gradient along the
+   crypt-villus axis, making ANTXR2's own position on that axis a direct,
+   testable prediction. Existing means hint at it (crypt stem cell +1.21 vs
+   enterocyte +2.12 log-ratio) but it is untested.
+
+5. **Kong2023 feasibility check, then differential correlation.** Before
+   scoping anything: confirm ANTXR2 clears `min_perc_group` in enough
+   Kong2023 donors *per condition* to support a two-group test. ANTXR2 already
+   needed `min_perc_group` relaxed to 0.6 in the Elmentaite enterocyte full
+   set. If feasible, the pre-specified prediction from Bracq et al. is
+   directional: **Wnt-arm partner co-availability should be absent or weak in
+   `Non_pathological` and appear in `Inflamed`**, since the function is
+   injury-conditional. This is a much sharper use of `ht_2d_moments` than
+   open-ended exploration.
+
+6. **Cell-state conditioning.** The pipeline handles donor structure carefully
+   and within-donor heterogeneity not at all. Doubles as the co-occupancy vs
+   co-regulation separator (see "What each kind of evidence can establish").
+
+7. **Dropped scope worth reconsidering.** The trio working set
+   (fibroblast/enterocyte/macrophage) silently became the analysis scope.
+   `planning.md` aimed the machinery-completeness question at the unexplained
+   **enteric smooth muscle / ICC** signal; kept Tabula Sapiens specifically for
+   **uterus** (where the Col6a1 rescue cross was done); and flagged **which
+   fibroblast subtype** as newly answerable at Steele's 9-subtype resolution.
+   None are in the trio.
+
+8. **Verify the AS GWAS variant annotation at ANTXR2.** Long-pending. The
+   association is replicated (top SNPs rs12504282/rs4333130/rs4389526, r²≥0.76,
+   meta p=6.7e-9) and the lead SNPs sit near a putative regulatory region
+   rather than in coding sequence -- so the AS mechanism is plausibly
+   expression-level, unlike HFS's coding recessive LoF. This is the one axis
+   on which ANTXR2's *own* transcriptional regulation is disease-relevant.
+
+## Out of scope, deliberately
+
+**Causal identification.** Perturb-seq (Replogle K562) is real do(X) but the
+wrong cell type; MR via OneK1K is properly identified but PBMC-only, where
+ANTXR2 is low -- a weak instrument exactly where the data is. Ruled out:
+PC/GES (needs causal sufficiency), pseudotime/velocity ordering, front-door.
+**The gap is itself a finding**: it defines what new data would be needed.
+
+**Claims about what the ANTXR2 protein does.** Its function is
+post-transcriptional (endocytosis, lysosomal degradation, MMP activation,
+β-catenin translocation). Gene-gene correlation cannot speak to it. The
+project's claims are about *partner availability*, which is what expression
+data measures well.
+
+---
+
+*Everything below is the chronological session log.*
+
+## Session log
 
 Working notes for this analysis session, kept separate from the pipeline's own
 technical README (`/data/ANTXR2/celltype_expression/README.md`, regenerated by
@@ -636,7 +906,13 @@ COL1A1 91% / PTPRC 0.2%, `Enterocyte` EPCAM 86%); and a memento smoke test
 (`setup_memento` + `create_groups` + `compute_1d_moments`) returns 3 groups with
 finite moments over all 18,370 genes.
 
-## Open / next steps
+## Open / next steps (SUPERSEDED)
+
+> **This list is stale and narrower than the current framing.** The
+> authoritative open list is "Designed but never run" in the header.
+> Kept here for provenance -- several items below have since been
+> re-ranked or reframed.
+
 
 - Phase 1 (means only) is complete and verified. Phase 2 (variance /
   formal hypothesis testing via memento's `ht_1d_moments`) is not started.
@@ -993,9 +1269,286 @@ Output: `/data/ANTXR2/figures/coexpression/full_dataset_ht/{cell_type}_full_data
 | enterocyte | 335 (71 neg / 264 pos) | 505 (64 neg / 441 pos) |
 | macrophage | 5 (not read as real) | 119 (106 neg / 13 pos) |
 
-- **Fibroblast's positive side sharpened dramatically and became directly on-target**: the z-score ranking's top positive terms are essentially a clean readout of ANTXR2's own known biology -- Extracellular Matrix Organization, Collagen Formation, ECM-receptor Interaction, Focal Adhesion, Collagen Biosynthesis, ECM Proteoglycans (lead genes: COL1A1, COL1A2, COL3A1, COL6A1/2, COL9A3, COL14A1, FN1, LAMB1/C1, ITGB1, SPARC, DCN, ADAMTS1...). This is a better, more mechanistically specific result than the mean-ranked GSEA's positive side (generic endocytosis/lysosomal trafficking) -- arguably the cleanest confirmation in this whole project that the pipeline is measuring something biologically real, since ANTXR2/CMG2 is a reported collagen VI receptor and this is exactly the gene module a real signal should recover.
+- **Fibroblast's positive side sharpened dramatically and became directly on-target**: the z-score ranking's top positive terms are essentially a clean readout of ANTXR2's own known biology -- Extracellular Matrix Organization, Collagen Formation, ECM-receptor Interaction, Focal Adhesion, Collagen Biosynthesis, ECM Proteoglycans (lead genes: COL1A1, COL1A2, COL3A1, COL6A1/2, COL9A3, COL14A1, FN1, LAMB1/C1, ITGB1, SPARC, DCN, ADAMTS1...). This is a more mechanistically specific result than the mean-ranked GSEA's positive side (generic endocytosis/lysosomal trafficking). **AMENDED (see "Standing corrections" in the header): this was originally written up as the project's cleanest confirmation that the pipeline measures something biologically real. That reading is wrong and must not be reused.** Bürgi et al. 2017 showed collagen VI mRNA does *not* change in Antxr2−/− uteri -- the mechanism is degradation, not transcription -- so ANTXR2→COL6 transcriptional coupling is not predicted, and a positive ECM correlation cannot serve as a positive control, because a positive control must be able to fail. The result is still worth reporting, but as **co-regulation evidence** (ANTXR2 and the ECM program plausibly under shared tissue-program pressure in a cell type where the clearance partners *are* present), and it is gated on the anchor-gene specificity control, which has not been run. Note also that this is an *exploratory* GSEA finding, not a confirmatory panel test.
 - **Fibroblast and enterocyte's negative side (ribosome/translation) reproduces under the new metric**, essentially unchanged in character from the mean-ranked version -- Ribosome, rRNA Processing, Cytoplasmic Translation, Peptide Chain Elongation all remain top negative hits. This cross-metric reproduction is itself evidence the finding is not an artifact of one particular ranking choice.
-- **Enterocyte's positive side changed character**, from actin-cytoskeleton/cholesterol-biosynthesis (mean-ranked) to Fat/Protein Digestion and Absorption, MHC Class I antigen presentation, PPAR signaling (z-score-ranked). Both are plausible enterocyte biology; which one is "more correct" isn't resolved by this analysis alone -- flagged as a metric-sensitive result, not adjudicated.
+- **Enterocyte's positive side changed character**, from actin-cytoskeleton/cholesterol-biosynthesis (mean-ranked) to Fat/Protein Digestion and Absorption, MHC Class I antigen presentation, PPAR signaling (z-score-ranked). Both are plausible enterocyte biology; which one is "more correct" isn't resolved by this analysis alone -- flagged as a metric-sensitive result, not adjudicated. **Later note:** both branches are compatible with an epithelial barrier/absorption axis (brush border and tight junctions are actin/plasma-membrane organization; protein-losing enteropathy and malabsorption are digestion and absorption), so they may not be in conflict. Treat this as a hypothesis to pre-specify and test, NOT as a resolution -- enterocytes do digestion and absorption as their dominant biology, so this enrichment is exactly what the anchor-gene control exists to check. **AMENDED 2026-09-06: checked, and it fails the control** -- a majority of expression-matched anchor genes also recover this term (see the header's anchor-gene-specificity standing correction and the "Task 2 results" section below). Read this enrichment as generic enterocyte biology, not ANTXR2-specific co-regulation.
 - **Macrophage's apparent gain (5 -> 119 terms) should NOT be read as a real improvement, and is very likely a statistical artifact worth understanding explicitly**: memento's bootstrap se estimates SAMPLING noise from cells *within* one donor's group; it does not, and cannot, capture *between-donor* biological variability. The discovery/replication split-half check earlier in this file directly measured between-donor agreement for macrophage and found it indistinguishable from chance (66.7% sign concordance, binomial p=0.25, negative effect-size correlation) -- macrophage's 5 donors simply don't agree with each other enough to support gene-level claims. A z-score can look confidently large purely because a donor group happens to have enough cells for a small within-group bootstrap se, even while the true cross-donor signal for that gene is noise. Mean-based ranking is comparatively insensitive to this trap (it doesn't reward small se at all); z-score ranking is exactly the metric most exposed to it when between-donor replication has already failed. **Macrophage's z-score GSEA results are not used for any biological conclusion in this project** -- consistent with every other macrophage caveat in this file, just now with a specific mechanistic reason for why this particular metric makes it look artificially better, not worse.
 
 **Practical implication for reading this project's two GSEA atlases going forward**: for fibroblast and enterocyte -- both independently validated by the discovery/replication split -- prefer the z-score-ranked results (`gsea_zscore/`) over the original mean-ranked ones (`gsea/`) where they differ, since down-weighting imprecise correlations is the statistically correct thing to do and the fibroblast ECM/collagen signal it surfaces is a stronger, more specific confirmation than what mean-ranking found. For macrophage, neither GSEA result should be trusted as a biological finding; the gap between them is itself informative only as a demonstration of the se-vs-replication-variance trap above.
+## Partner-availability analysis: pre-registration (2026-09-06)
+
+Implementing `prompts/partner_availability.md`, items 1-5 of "Designed but never
+run." Interpretation rules below are written **before looking at any Task
+1/2/5 value**, per that prompt's instructions. Tasks 3 and 4 are pure
+extension/formal-test tasks with no ambiguous-direction result to pre-commit
+to, so no rule is pre-registered for them.
+
+**Task 1 (ANTXR1/ANTXR2 paralog readout):**
+- Significant **negative** correlation -> mutual exclusivity -> real evidence
+  ANTXR1 and ANTXR2 occupy different cells (the paralog-partitioning result
+  the project was designed around). Interpretable immediately, no specificity
+  control needed (per the standing "anti-correlation is stronger" correction).
+- Significant **positive** correlation -> co-occupancy or co-regulation ->
+  **not interpretable until Task 2's anchor-gene floor has run**, and requires
+  the doublet check (fibroblast-epithelial doublets would specifically inflate
+  this pair).
+- **Null** -> uninformative. Explicitly NOT evidence of co-presence in either
+  direction.
+- Macrophage's value will be reported but is exploratory-only and no
+  conclusion will be drawn from it (standing correction).
+
+**Task 2 (anchor-gene specificity control):**
+- If **most** ~20 expression/detection-matched anchor genes in a cell type
+  independently recover the same GSEA terms (ECM/collagen for fibroblast,
+  digestion/absorption for enterocyte) at the same FDR threshold used for
+  ANTXR2, that recovery is a **property of the cell type's transcriptional
+  program, not of ANTXR2 specifically** -- ANTXR2's positive correlation with
+  that program is not distinguishing evidence. This will be reported as
+  clearly as the alternative outcome; it is a real, useful negative, not a
+  failed analysis.
+- If ANTXR2 sits at or beyond the extreme tail of the anchor distribution
+  (empirical percentile) for that term's NES while most anchors do not recover
+  it, that supports ANTXR2 carrying a specific (not merely cell-type-generic)
+  relationship to the program -- still co-regulation/co-occupancy, not a
+  causal or physical-interaction claim (per the header's evidence table).
+- This result **gates** the fibroblast ECM-correlation and enterocyte
+  digestion/absorption-correlation claims already in this log -- neither is
+  to be treated as confirmatory until this control has run.
+
+**Task 5 (Kong2023 feasibility check):**
+- This is a **feasibility gate, not a results-producing step.** No
+  differential-correlation test is run in this task regardless of outcome.
+- If ANTXR2 fails `min_perc_group=0.7` in a condition x cell-type group, the
+  threshold that *would* be needed is reported (reference point: 0.6 was
+  needed for Elmentaite's full enterocyte donor set) rather than treating
+  failure as a dead end without characterizing it.
+- Any condition with <8 usable donors (>=100 cells, per
+  `COEXPR_MIN_GROUP_CELLS`) for a cell type is flagged **underpowered for
+  two-group testing** in that condition, using the macrophage precedent (5
+  donors -> replication indistinguishable from chance) as the reference for
+  what "underpowered" has meant empirically in this project -- not a new,
+  arbitrary bar.
+- Chemistry/batch confounding with condition will be checked explicitly
+  (donor confounding with a grouping variable has already burned this project
+  once, in the `donor_id` collision/alias issue).
+- The differential-correlation test itself is only scoped (never run) in this
+  task, and only if feasibility passes, with the pre-specified directional
+  prediction from Bracq et al.: ANTXR2's coupling to Wnt-arm partners and
+  regeneration programs should be **absent or weak in `Non_pathological`** and
+  **appear in `Inflamed`**, since the Wnt function is injury-conditional.
+
+Results for all five tasks follow below, each labeled confirmatory
+(pre-defined panel test) or exploratory (screening), per the prompt's output
+spec.
+
+### Task 1 results: ANTXR1/ANTXR2 paralog readout
+
+**Confirmatory** (pre-defined panel test -- ANTXR1 is the single, pre-specified gene of interest here, read out of an already-computed full-dataset test).
+
+| cell type | in tested universe | rank | coef | se | z | pval | fdr | call |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| fibroblast | yes (4502 genes tested) | 1908 | 0.1174 | 0.0750 | 1.564 | 0.3414 | 0.8051 | NULL (uninformative) |
+| enterocyte | NO (5852 genes tested) | -- | -- | -- | -- | -- | -- | filtered out (near-absent expression) |
+| macrophage | NO (3977 genes tested) | -- | -- | -- | -- | -- | -- | filtered out (near-absent expression) |
+
+Pre-fix point estimate for comparison: ANTXR1-ANTXR2 was reported earlier in this log ("Implication for the ECM-clearance-panel question" section) at **0.35** -- that value predates the `_corr_from_cov` variance<=0 null-out fix and is **superseded**; per the correction, it is not necessarily wrong in sign but is very likely overstated in magnitude by the same placeholder-clipping bug that affected every other panel gene.
+
+**Fibroblast (the only cell type where ANTXR1 survives the detection filter and gets a real test): NULL.** coef=0.117, pval=0.341, fdr=0.805, rank 1908 of 4502 -- squarely mid-pack, not extreme in either direction. Per the pre-registered rule, **this is explicitly NOT evidence of ANTXR1/ANTXR2 co-presence in fibroblast** -- it means the correlation test has no power to distinguish the co-presence hypothesis from the mutual-exclusivity hypothesis here, not that co-presence is confirmed. Because coef is nominally positive but not significant, this is a **null, not a 'significant positive'** in the pre-registered sense -- the doublet check (which the prompt gates on significant positive correlations specifically) was correctly **not triggered** for fibroblast; see doublet-check section below for the reasoning trace.
+
+**Enterocyte and macrophage: ANTXR1 is filtered out of the tested universe entirely** (fails the memento `min_perc_group` presence filter before a correlation could even be attempted). Direct per-cell counts explain why: ANTXR1 is detected in only **0.08% of enterocytes** (35,062 cells) and **2.2% of macrophages** (2,953 cells), vs. 25.2% of fibroblasts. **This is itself the stronger, means-level asymmetric result** the header's evidence table describes: ANTXR1 is essentially absent from gut epithelium and largely absent from macrophage by the mean/detection-rate alone -- no correlation test is needed to make that call, and none was possible. A co-expression question ("do ANTXR1 and ANTXR2 occupy the same enterocytes/macrophages") is moot when one partner is barely present at all; the paralog-partitioning claim for these two cell types rests on presence/absence, not correlation.
+
+**Macrophage is reported for completeness only and is exploratory** (standing correction) -- no conclusion is drawn from it regardless of the above.
+
+#### Bimodality check
+
+Figure: `/data/ANTXR2/figures/coexpression/paralog_readout/antxr1_antxr2_distribution.png`. Per-cell expression is sparse/zero-inflated for both genes in every cell type (detection rates 0.08%-25.3%, well below the >90% near-uniform threshold used here) -- **neither gene is near-uniformly expressed anywhere**, so correlation remains a meaningful co-presence readout wherever both genes clear the detection filter (fibroblast); it is not needed as a readout where one partner is already known absent by the mean (enterocyte, macrophage).
+
+```
+ cell_type   gene  n_cells     mean  pct_nonzero  cv_nonzero  near_uniform
+fibroblast ANTXR1    18867 0.342980    25.250437    0.588618         False
+fibroblast ANTXR2    18867 0.278264    21.577357    0.512392         False
+enterocyte ANTXR1    35062 0.000799     0.077006    0.182108         False
+enterocyte ANTXR2    35062 0.077605     6.830757    0.376249         False
+macrophage ANTXR1     2953 0.027430     2.201151    0.923371         False
+macrophage ANTXR2     2953 0.121233    10.836438    0.351512         False
+```
+
+#### Doublet check
+
+**Not triggered for any cell type.** The prompt's doublet check applies only to a significant positive correlation; fibroblast's positive point estimate was not significant (null), and enterocyte/macrophage have no correlation at all (ANTXR1 filtered out). No doublet check was run.
+
+
+### Task 3 results: extended gene panel, two-arm heatmap
+
+**Exploratory characterization / descriptive query** (not a significance test -- means only, same status as the original ECM-clearance heatmap). `GENE_PANEL_ARMS` added to `config.py` (RECEPTORS, CLEARANCE_ARM, CLEARANCE_SUBSTRATE, WNT_ARM); original `GENE_PANEL` untouched. Figures: `/data/ANTXR2/figures/two_arm_panel/two_arm_heatmap_{wholebody,skin}.png`. **No composite score computed** -- `*_arm_completeness.csv` reports, per row and per gene, whether that gene's raw value is within 2 orders of magnitude of its OWN maximum across the curated rows (the same standard already used by hand for the MRC2 gut-epithelium-vs-keratinocyte/corneal finding earlier in this log, a ~2-3 order-of-magnitude gap), alongside the raw values in `*_two_arm_raw.csv`; it is a per-gene reading aid over the same raw numbers, not a score that combines genes.
+
+**Per-cell-type arm availability call (whole-body atlas):**
+
+| cell type | clearance arm | substrate (COL6) | Wnt arm | neither arm complete |
+|---|---|---|---|---|
+| retinal pigment epithelial cell | 6/6 | 1/3 | 14/18 |  |
+| endothelial cell | 5/6 | 2/3 | 16/18 |  |
+| retinal blood vessel endothelial cell | 6/6 | 2/3 | 14/18 |  |
+| sebocyte | 3/6 | 1/3 | 14/18 |  |
+| skeletal muscle satellite stem cell | 6/6 | 3/3 | 16/18 |  |
+| neuron | 4/6 | 2/3 | 12/18 |  |
+| follicular dendritic cell | 4/6 | 2/3 | 13/18 |  |
+| enteric neuron | 5/6 | 2/3 | 13/18 |  |
+| enteroglial cell | 6/6 | 2/3 | 13/18 |  |
+| adventitial cell | 6/6 | 3/3 | 15/18 |  |
+| tissue-resident macrophage | 6/6 | 3/3 | 15/18 |  |
+| fibroblast of gingiva | 6/6 | 3/3 | 16/18 |  |
+| fibroblastic reticular cell | 6/6 | 3/3 | 14/18 |  |
+| fibroblast | 6/6 | 3/3 | 17/18 |  |
+| myofibroblast cell | 6/6 | 3/3 | 16/18 |  |
+| interstitial cell of Cajal | 6/6 | 3/3 | 15/18 |  |
+| smooth muscle cell | 6/6 | 3/3 | 16/18 |  |
+| paneth cell | 3/6 | 0/3 | 16/18 |  |
+| melanocyte | 5/6 | 2/3 | 15/18 |  |
+| naive B cell | 2/6 | 0/3 | 6/18 | **YES** |
+| pancreatic acinar cell | 4/6 | 0/3 | 15/18 |  |
+| hepatocyte | 2/6 | 0/3 | 13/18 |  |
+| M cell of gut | 4/6 | 1/3 | 13/18 |  |
+| colonocyte | 4/6 | 1/3 | 15/18 |  |
+| enterocyte | 4/6 | 1/3 | 13/18 |  |
+| intestinal crypt stem cell | 3/6 | 0/3 | 16/18 |  |
+| intestine goblet cell | 4/6 | 0/3 | 16/18 |  |
+| intestinal tuft cell | 4/6 | 0/3 | 15/18 |  |
+| corneal epithelial cell | 4/6 | 0/3 | 14/18 |  |
+| keratinocyte | 5/6 | 0/3 | 14/18 |  |
+
+Cell types with the clearance arm essentially absent AND the Wnt arm well under half present (i.e. ANTXR2 present with **neither** function's machinery structurally available): naive B cell.
+
+**Gut epithelium specifically** (paneth cell, colonocyte, enterocyte, intestinal crypt stem cell, intestine goblet cell, intestinal tuft cell): clearance-arm genes (mean n_present/6 across these rows: 3.7) confirm the project's existing MRC2-absence finding extends to the arm as a whole. Wnt-arm presence (mean n_present/18: 15.2) is the new information this panel adds -- if broadly present, gut epithelium has the Wnt-arm partners even though it lacks the clearance-arm ones, consistent with Bracq et al.'s finding that CMG2's role there is Wnt-pathway (injury-conditional), not clearance.
+
+**Skin fibroblast subtypes:** see `skin_arm_completeness.csv` for the per-subtype breakdown (13 subtypes) -- not reproduced row-by-row here since the whole-body table above already carries the generic `fibroblast` row for this atlas's clearance-arm baseline (established: robust ANTXR1 co-presence, standing correction: not evidence of redundancy).
+
+### Task 4 results: formal binary_test_1d tests
+
+**Confirmatory** (pre-specified genes/groups, formal memento `ht_1d_moments` two-group test with donor as the replicate unit; adaptive `min_perc_group` retry, same posture as `coexpression_discovery_replication.py`, when a gene is near-absent in one group by design). Ran directly (not via `memento.binary_test_1d`, which hardcodes `min_perc_group=0.9` with no retry). `de_coef`/`de_se`/`de_pval` are memento's differential-mean bootstrap test; positive `de_coef` means higher expression in the group listed first (treatment=1). Output: `/data/ANTXR2/figures/binary_tests/binary_test_1d_results.csv` (+ per-test donor summaries).
+
+#### Task 4.1: MRC2, gut epithelium vs. lineage-matched comparison
+
+Run as **two separate within-atlas tests** rather than one pooled cross-atlas test -- keratinocyte and gut epithelium co-occur in the Gut Cell Atlas itself (perianal-adjacent skin samples), while corneal epithelial cell only exists in Tabula Sapiens; merging cells across two atlases with different chemistries into one memento run would need its own capture-rate harmonization (as Phase 2's PBMC-calibration work did for the coexpression trio), which is out of scope for a formal test of an existing means-level finding. This is a deviation from a single pooled test, noted explicitly.
+
+**4.1a:** failed_presence_filter (min_perc_group tried down to 0.1) -- MRC2 could not even clear a heavily-relaxed presence filter in one group, which is itself consistent with (arguably stronger than) the significant-difference result: the gene is too near-absent for the bootstrap machinery to even engage.
+
+**4.1b (Tabula Sapiens, gut epithelium vs. corneal epithelial cell): EXPLORATORY -- underpowered by this project's own macrophage precedent** (<8 usable donors on at least one side: 5 gut-epithelium vs. 2 corneal donors). de_coef=-4.0060, se=0.3100, pval=1.699e-38 (SIGNIFICANT, min_perc_group=0.57). Reported for completeness since corneal epithelial cell was part of the originally-chosen comparison set, but this specific test should not be treated as confirmatory -- read 4.1a as the formal result.
+
+#### Task 4.2: ANTXR2, crypt stem/TA vs. differentiated enterocyte
+
+(135 stem/TA vs. 106 enterocyte donors ≥100 cells, well-powered.) de_coef=-0.6164 (treatment=1 is crypt_stem_TA, so **negative = higher in the differentiated enterocyte** group), se=0.0282, pval=5.825e-106 -- **SIGNIFICANT**. ANTXR2 is significantly HIGHER in differentiated enterocyte, formally confirming the descriptive means (crypt stem +1.21 vs. enterocyte +2.12 log-ratio) with a real significance test for the first time. This is now load-bearing for reading Lencer's commentary on Bracq et al. (ANTXR2's own position tracks the diminishing Wnt gradient along the crypt-villus axis) as a confirmed, not merely suggestive, pattern.
+
+#### Task 4.3: WNT_ARM genes along the same crypt-villus axis
+
+Same two groups as 4.2 (crypt_stem_TA=1 vs. differentiated_enterocyte=0), read against ANTXR2's own gradient above -- **negative de_coef means higher in differentiated enterocyte (same direction as ANTXR2 itself, i.e. tracks ANTXR2 down the gradient toward the villus)**, positive means higher in crypt/stem (opposite direction, i.e. tracks WITH the Wnt-active compartment as expected for genuine Wnt-pathway partners since crypt-base cells are where canonical Wnt signaling is active).
+
+| gene | status | de_coef | de_se | pval | fdr (within WNT_ARM) | direction |
+|---|---|---:|---:|---:|---:|---|
+| LRP5 | ok | -0.5841 | 0.0176 | 2.492e-242 | 5.399e-242 **sig** | villus/differentiated-enriched |
+| LRP6 | ok | 0.0088 | 0.0217 | 0.7174 | 0.7174  | crypt/stem-enriched (Wnt-active compartment) |
+| FZD1 | ok | -0.0429 | 0.0421 | 0.4146 | 0.4491  | villus/differentiated-enriched |
+| FZD2 | failed_presence_filter | -- | -- | -- | -- | -- |
+| FZD3 | ok | 1.7380 | 0.0570 | 3.455e-189 | 6.416e-189 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+| FZD4 | failed_presence_filter | -- | -- | -- | -- | -- |
+| FZD5 | ok | -0.1056 | 0.0131 | 3.362e-16 | 4.37e-16 **sig** | villus/differentiated-enriched |
+| FZD6 | ok | 0.8925 | 0.0423 | 6.526e-93 | 1.061e-92 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+| FZD7 | ok | -0.2462 | 0.0378 | 5.113e-11 | 6.042e-11 **sig** | villus/differentiated-enriched |
+| FZD8 | failed_presence_filter | -- | -- | -- | -- | -- |
+| FZD9 | failed_presence_filter | -- | -- | -- | -- | -- |
+| FZD10 | failed_presence_filter | -- | -- | -- | -- | -- |
+| CTNNB1 | ok | -0.1288 | 0.0091 | 1.241e-45 | 1.792e-45 **sig** | villus/differentiated-enriched |
+| TCF7L2 | ok | -0.3832 | 0.0112 | 4.961e-257 | 1.29e-256 **sig** | villus/differentiated-enriched |
+| LGR5 | ok | 3.9424 | 0.0964 | 0 | 0 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+| RNF43 | ok | 1.0428 | 0.0143 | 0 | 0 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+| ZNRF3 | ok | 2.4317 | 0.0524 | 0 | 0 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+| AXIN2 | ok | 2.4343 | 0.0525 | 0 | 0 **sig** | crypt/stem-enriched (Wnt-active compartment) |
+
+### Task 5 results: Kong2023 feasibility check
+
+**Feasibility gate, not a results-producing step** (per pre-registration) -- no differential-correlation test was run. Kong2023 data source: already inside the downloaded Gut Cell Atlas Extended+ h5ad (`/data/ANTXR2/raw/gut_cell_atlas/19053a82-9c89-4fb8-bd19-d7b1800b0b7b.h5ad`, `study=='Kong2023'` filter), no new download needed. 235,327 cells, 71 donors. Output: `/data/ANTXR2/figures/kong2023_feasibility/{per_donor_counts,feasibility_summary,chemistry_by_condition}.csv`.
+
+#### 1-2. Per cell_type x condition: donor counts and ANTXR2 presence
+
+ANTXR2 "presence" replicates memento's own filter formula directly (a donor group's raw mean count must exceed `filter_mean_thresh=0.07`; the gene passes overall if that holds in a strict majority, `>min_perc_group`, of the cell type x condition's donor groups with >=100 cells) rather than by running memento itself -- only the pass/fail outcome is needed for a feasibility check. Donors with <8 usable (>=100-cell) groups are flagged underpowered, using the macrophage precedent (5 donors -> replication indistinguishable from chance) as the reference.
+
+| cell type | condition | donors (total / ≥100 cells) | ANTXR2 present (n/frac) | clears mpg=0.7 | underpowered (<8 donors) |
+|---|---|---|---|---|---|
+| colonocyte | Inflamed | 5 / 4 | 4/4 (1.00) | YES | **YES** |
+| colonocyte | Neighbouring_inflamed | 17 / 16 | 8/16 (0.50) | no | no |
+| colonocyte | Non_pathological | 16 / 16 | 6/16 (0.38) | no | no |
+| enterocyte | Inflamed | 12 / 10 | 7/10 (0.70) | no | no |
+| enterocyte | Neighbouring_inflamed | 28 / 27 | 24/27 (0.89) | YES | no |
+| enterocyte | Non_pathological | 10 / 9 | 7/9 (0.78) | YES | no |
+| intestinal crypt stem cell | Inflamed | 15 / 2 | 1/2 (0.50) | no | **YES** |
+| intestinal crypt stem cell | Neighbouring_inflamed | 40 / 4 | 2/4 (0.50) | no | **YES** |
+| intestinal crypt stem cell | Non_pathological | 24 / 6 | 3/6 (0.50) | no | **YES** |
+| intestine goblet cell | Inflamed | 16 / 12 | 5/12 (0.42) | no | no |
+| intestine goblet cell | Neighbouring_inflamed | 43 / 38 | 31/38 (0.82) | YES | no |
+| intestine goblet cell | Non_pathological | 25 / 22 | 9/22 (0.41) | no | no |
+| paneth cell | Inflamed | 14 / 1 | 1/1 (1.00) | YES | **YES** |
+| paneth cell | Neighbouring_inflamed | 34 / 11 | 4/11 (0.36) | no | no |
+| paneth cell | Non_pathological | 10 / 1 | 1/1 (1.00) | YES | **YES** |
+| transit amplifying cell | Inflamed | 17 / 12 | 7/12 (0.58) | no | no |
+| transit amplifying cell | Neighbouring_inflamed | 43 / 37 | 18/37 (0.49) | no | no |
+| transit amplifying cell | Non_pathological | 25 / 21 | 7/21 (0.33) | no | no |
+
+**Colonocyte (the Bracq et al.-matched cell type -- mouse colon DSS colitis) fails the standard `min_perc_group=0.7` presence filter** in both well-powered conditions (Non_pathological: 0.38, Neighbouring_inflamed: 0.50 of donors present) -- well below the 0.6 threshold that already had to be used for Elmentaite's full enterocyte donor set. A relaxed threshold of roughly 0.35-0.5 would be needed just to admit ANTXR2 into a colonocyte test, i.e. **further relaxation than any precedent in this project.** Colonocyte's Inflamed condition additionally has only 4 well-powered donors -- underpowered regardless of the presence question.
+
+**Enterocyte (the extension cell type) clears the standard filter** in Neighbouring_inflamed (0.89) and Non_pathological (0.78), and sits exactly at the boundary in Inflamed (0.70 -- since memento's filter is a strict `>`, exactly 0.70 would still FAIL and needs a hair of relaxation, e.g. 0.69). All three enterocyte conditions clear the 8-donor power floor.
+
+**Crypt stem cell and Paneth cell are underpowered in every condition** (intestinal crypt stem cell/Inflamed: 2 donors, intestinal crypt stem cell/Neighbouring_inflamed: 4 donors, intestinal crypt stem cell/Non_pathological: 6 donors, paneth cell/Inflamed: 1 donors, paneth cell/Neighbouring_inflamed: 11 donors, paneth cell/Non_pathological: 1 donors) -- both flagged underpowered regardless of the presence question; not usable for a two-group test in Kong2023 at all.
+
+#### 3. Chemistry/batch confounded with condition?
+
+```
+assay                  10x 3' v1  10x 3' v2  10x 3' v3
+condition                                             
+Inflamed                       0      18554       7975
+Neighbouring_inflamed          0      60954      67825
+Non_pathological           23628      32442      15387
+```
+
+**Yes, confounded.** `10x 3' v1` appears ONLY in `Non_pathological` (23628 cells, 33% of that condition's cells if present) while `Neighbouring_inflamed` and `Inflamed` are 100% `10x 3' v2`/`v3` -- the same shape of confound as the `donor_id` collision issue flagged earlier in this project (a real technical variable perfectly or near-perfectly aligned with the biological grouping of interest). Any Non_pathological-vs-inflamed differential test would need to either restrict Non_pathological to its v2/v3 donors only, or treat chemistry as an explicit covariate -- **not treat the raw condition contrast as chemistry-free.**
+
+#### 4. Scoping (not running) the differential test, if feasible
+
+**Enterocyte is the only feasible cell type for a well-powered Non_pathological-vs-Inflamed or Non_pathological-vs-Neighbouring_inflamed two-group test** (colonocyte fails presence; crypt stem/Paneth fail power; goblet/TA are intermediate -- see full table above). Pre-registered directional prediction (Bracq et al.): since CMG2's Wnt function is injury-conditional (CMG2-KO baseline guts are normal), **ANTXR2's coupling to Wnt-arm partners and regeneration programs should be absent or weak in `Non_pathological` and appear in `Inflamed`.** Any such test must restrict or covary for the chemistry confound in point 3 above, and should use enterocyte as primary with colonocyte reported only as a presence-filter negative result (an interesting finding in its own right, not a null test outcome), consistent with `prompts/partner_availability.md`'s framing that colonocyte is the literal match to Bracq et al.'s mouse colon model while enterocyte is the extension.
+
+#### 5. Colonocyte vs. enterocyte as the Bracq et al. match
+
+Confirmed per the pre-registration: Bracq et al. is mouse **colon** with DSS colitis, so colonocyte is the directly-matched cell type; enterocyte is the extension. The feasibility result above means the directly-matched cell type is NOT the one available for the actual test -- a real scoping constraint to carry forward, not an incidental detail.
+
+
+### Task 2 results: anchor-gene specificity control
+
+**Confirmatory** (pre-registered interpretation rule, see pre-registration above) -- this gates the fibroblast ECM-correlation and enterocyte digestion/absorption-correlation exploratory GSEA findings reported earlier in this log; those remain exploratory GSEA characterizations, and this section is what determines whether they carry any ANTXR2-specific evidentiary weight.
+
+#### fibroblast
+
+**Anchor selection**: 20 genes randomly drawn (seed=20260906) from 1305 candidates matched to ANTXR2 within log10±0.250 mean expression and ±0.050 detection rate (ECM/ribosomal/mitochondrial genes and this project's own panel genes excluded from the candidate pool). Selected: ARFRP1, BDP1, C1QTNF2, CBR1, COLEC12, DNPEP, HOTAIRM1, PLRG1, PLXNB2, QKI, REST, RHBDD2, RIC8A, SGTA, SLC25A37, SYS1, THAP7, TMF1, USP1, WDR45. Full candidate table: `fibroblast_selected_anchors.csv`.
+
+20/20 anchors have a completed HT+GSEA run.
+
+- **Extracellular Matrix Organization (GO:0030198)** (GO_Biological_Process_2023): ANTXR2 NES=2.56 (FDR=0) vs. **6/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [-1.89, 2.49], mean 1.04). ANTXR2's NES sits at the **100th percentile** of the anchor distribution.
+- **ECM-receptor interaction** (KEGG_2021_Human): ANTXR2 NES=2.40 (FDR=0) vs. **8/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [-1.62, 2.43], mean 1.00). ANTXR2's NES sits at the **95th percentile** of the anchor distribution.
+- **Collagen Formation R-HSA-1474290** (Reactome_2022): ANTXR2 NES=2.30 (FDR=0) vs. **10/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [-1.62, 2.37], mean 1.25). ANTXR2's NES sits at the **80th percentile** of the anchor distribution.
+- **Focal adhesion** (KEGG_2021_Human): ANTXR2 NES=2.19 (FDR=0) vs. **6/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [-1.15, 2.41], mean 1.15). ANTXR2's NES sits at the **95th percentile** of the anchor distribution.
+
+**Interpretation (pre-registered rule applied): no key term is recovered by a majority of anchors in fibroblast** -- the ANTXR2 correlation with this program is not simply a generic property of fibroblast's cells at ANTXR2's expression level, supporting (but not proving causally) a specific relationship.
+
+#### enterocyte
+
+**Anchor selection**: 20 genes randomly drawn (seed=20260906) from 824 candidates matched to ANTXR2 within log10±0.250 mean expression and ±0.050 detection rate (ECM/ribosomal/mitochondrial genes and this project's own panel genes excluded from the candidate pool). Selected: ADCY6, ATAD2B, C2CD5, CDC27, FANCL, FBXO8, GTF3C2, METTL14, NT5E, PEAK1, PPP1R35, SFXN5, SLC25A44, SSTR1, TIPARP, TMEM80, TRAPPC9, UBXN2B, ZFX, ZNF44. Full candidate table: `enterocyte_selected_anchors.csv`.
+
+20/20 anchors have a completed HT+GSEA run.
+
+- **Protein digestion and absorption** (KEGG_2021_Human): ANTXR2 NES=2.20 (FDR=0) vs. **17/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [1.21, 2.23], mean 1.78). ANTXR2's NES sits at the **90th percentile** of the anchor distribution.
+- **Fat digestion and absorption** (KEGG_2021_Human): ANTXR2 NES=2.14 (FDR=0) vs. **16/20 anchors also recover this term** at the same FDR<0.25 threshold (anchor NES range [1.21, 2.27], mean 1.62). ANTXR2's NES sits at the **95th percentile** of the anchor distribution.
+
+**Interpretation (pre-registered rule applied): at least one key term is recovered by a MAJORITY of anchors in enterocyte** -- for that term/those terms, the positive ANTXR2 correlation is a property of enterocyte's transcriptional program, not specific evidence about ANTXR2. This is a real, useful negative for those terms, reported as such rather than suppressed. **Header amended** (see "Standing corrections" -> "Positive correlations require the anchor-gene specificity control") -- this changes the framing of the enterocyte digestion/absorption GSEA finding from "ungated exploratory result" to "checked and did not survive", and the 2026-09-05 GSEA section's enterocyte note is amended in place with a pointer here.
+
+#### |z| vs. mean-expression check (Task 2, step 6)
+
+- **fibroblast**: corr(log10 mean expression, |z|) = 0.437 across 4502 tested genes (corr with signed z = -0.045). Non-trivial positive relationship -- consistent with memento's bootstrap se shrinking with cell count/detection rate, so highly-expressed genes can get inflated |z| in both tails. Treat this as a caveat on z-ranked results generally (this project's GSEA z-score ranking included); the anchor-matching above at least holds mean expression roughly fixed between ANTXR2 and its anchors, which limits (but does not eliminate) this confound's effect on the recovery-count comparison specifically.
+- **enterocyte**: corr(log10 mean expression, |z|) = 0.372 across 5852 tested genes (corr with signed z = 0.248). Non-trivial positive relationship -- consistent with memento's bootstrap se shrinking with cell count/detection rate, so highly-expressed genes can get inflated |z| in both tails. Treat this as a caveat on z-ranked results generally (this project's GSEA z-score ranking included); the anchor-matching above at least holds mean expression roughly fixed between ANTXR2 and its anchors, which limits (but does not eliminate) this confound's effect on the recovery-count comparison specifically.
