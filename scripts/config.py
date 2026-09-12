@@ -127,6 +127,136 @@ GENE_PANEL_ARMS = {
 }
 EXTENDED_GENE_PANEL = [g for arm in GENE_PANEL_ARMS.values() for g in arm]
 
+# --- IBD colon atlas (Smillie et al., Cell 2019, "Intra- and Inter-cellular
+# Rewiring of the Human Colon during Ulcerative Colitis") ---
+#
+# SCP259 on the Broad Single Cell Portal is login-gated: the study page states
+# "Please sign in to download data" and its study_files API returns HTTP 401
+# (verified at pipeline-build time). Every other dataset in this project had an
+# unauthenticated public download URL; this one does not, on its primary host.
+#
+# Resolution: the identical file set is also hosted on the Human Cell Atlas Data
+# Coordination Platform (HCA DCP) as project cd61771b-661a-4e19-b269-6e5d95350de6
+# ("HumanColonRewiringUlcerativeColitis"), dataUseRestriction="NRES" (no
+# restriction) and no duosId set -- i.e. genuinely open access, not merely listed.
+# Verified end-to-end with plain unauthenticated requests: HCA's Azul REST API
+# (https://service.azul.data.humancellatlas.org) resolves each file to a signed,
+# no-auth-required S3 URL via a 302 redirect from
+# GET /repository/files/{file_uuid}?catalog=dcp60&version={version}, and both a
+# tiny file (Imm.genes.tsv) and a >1GB file (gene_sorted-Epi.matrix.mtx, with an
+# HTTP Range request) round-tripped successfully this way -- no Broad/Google
+# login involved anywhere. Catalog is "dcp60" (the current default catalog at
+# resolution time; Azul catalogs are versioned/rotated over time by HCA, so
+# download_ibd_colon_data.py re-fetches the live default catalog at runtme rather
+# than hardcoding "dcp60", the same "IDs stable, resolve URLs at runtime" pattern
+# already used by download_data.py for CELLxGene collection IDs).
+#
+# One file (cell_subsets.txt, the fine->coarse 51-subset lineage map) is not part
+# of the HCA file set -- it comes from the paper authors' own analysis repo
+# (github.com/cssmillie/ulcerative_colitis), which is also the source of truth
+# for all raw file names below (from that repo's run.r).
+#
+# Not this dataset: GEO GSE114374 ("Composition of the Colonic Mesenchyme...") is
+# a related but DISTINCT companion study (Kinchen et al. 2018, 10 samples,
+# human+mouse) -- do not substitute it for SCP259/this HCA project.
+AZUL_BASE = "https://service.azul.data.humancellatlas.org"
+IBD_COLON_HCA_PROJECT_ID = "cd61771b-661a-4e19-b269-6e5d95350de6"
+IBD_COLON_DIR = os.path.join(RAW_DIR, "ibd_colon_atlas")
+IBD_COLON_COMPARTMENTS = ["Epi", "Fib", "Imm"]
+
+# Raw per-compartment files (10x-like triplet, Matrix Market format -- NOT h5ad,
+# unlike every other dataset in this project). Exact names per compartment, from
+# cssmillie/ulcerative_colitis/run.r:
+IBD_COLON_MATRIX_FILES = {comp: f"gene_sorted-{comp}.matrix.mtx" for comp in IBD_COLON_COMPARTMENTS}
+IBD_COLON_GENES_FILES = {comp: f"{comp}.genes.tsv" for comp in IBD_COLON_COMPARTMENTS}
+IBD_COLON_BARCODES_FILES = {comp: f"{comp}.barcodes2.tsv" for comp in IBD_COLON_COMPARTMENTS}
+# Pre-computed Seurat objects (discovery-cohort subset, NOT the full 30-donor
+# cohort -- exact subset size TBD once metadata is inspected), with tSNE already
+# computed. Kept as the "processed with visualization coordinates" artifact.
+IBD_COLON_SEURAT_RDS_FILES = {comp: f"train.{comp}.seur.rds" for comp in IBD_COLON_COMPARTMENTS}
+IBD_COLON_META_FILE = "all.meta2.txt"          # shared per-cell metadata, all compartments
+IBD_COLON_SUBSETS_FILE = "cell_subsets.txt"    # fine (51) -> coarse lineage map; from GitHub, not HCA
+IBD_COLON_SUBSETS_URL = "https://raw.githubusercontent.com/cssmillie/ulcerative_colitis/master/cell_subsets.txt"
+
+# Kept as 3 SEPARATE per-compartment h5ad files rather than one merged object:
+# verified post-download that the 3 compartments' gene panels are NOT identical
+# (Epi 20,028 genes, Fib 19,076, Imm 20,529; ~90-95% pairwise overlap, each
+# compartment independently gene-filtered by the original authors) and their
+# barcodes are disjoint (a cell belongs to exactly one compartment's matrix) --
+# so there is no natural shared `var` to merge on without inventing fake zeros
+# for genes a compartment's own panel never included. compute_ibd_colon_means.py
+# instead loops over these 3 files the same way compute_means.py loops over
+# manifest.csv rows, writing all compartments to the ONE shared
+# IBD_COLON_OUTPUT_PATH parquet with `compartment` as a row-level column --
+# "one dataset = one output parquet" is preserved at the output layer even
+# though raw loading stays per-compartment.
+IBD_COLON_H5AD_BY_COMPARTMENT = {
+    comp: os.path.join(IBD_COLON_DIR, f"ibd_colon_atlas_{comp}.h5ad")
+    for comp in IBD_COLON_COMPARTMENTS
+}
+IBD_COLON_RAW_SLOT = "X"  # these mtx files are already raw counts, single slot, no raw/X duality
+IBD_COLON_OUTPUT_PATH = os.path.join(OUTPUT_DIR, "ibd_colon_atlas_celltype_means.parquet")
+
+# obs schema of all.meta2.txt (verified at inspection time): NAME (barcode,
+# joins to each compartment's barcodes2.tsv), Cluster (the 51-subset fine cell
+# type -- joins 1:1 into cell_subsets.txt's fine label), nGene, nUMI (per-cell
+# QC, not used), Subject (donor id -- verified clean: exactly 30 distinct
+# values, each mapping to either 1 Health value (12 "Healthy" donors) or 2
+# (18 UC donors with paired Inflamed/Non-inflamed biopsies) -- no collision/
+# alias pattern found, so no *_UNIFIED_COL correction was needed here, unlike
+# the Gut Cell Atlas), Health (Healthy/Inflamed/Non-inflamed), Location
+# (Epi/LP -- an anatomical/tissue-layer label, NOT the same axis as
+# `compartment`: LP cells are split across the Fib and Imm compartment
+# matrices by cell type, so Location and compartment are kept as two separate
+# columns, never collapsed). All 365,492 metadata rows matched cleanly against
+# the union of all 3 compartments' barcodes (123,006 + 31,872 + 210,614 =
+# 365,492 exactly) -- verified, not assumed.
+IBD_COLON_META_NAME_COL = "NAME"
+IBD_COLON_CLUSTER_COL = "Cluster"
+IBD_COLON_DONOR_COL = "Subject"
+IBD_COLON_HEALTH_COL = "Health"
+IBD_COLON_LOCATION_COL = "Location"
+IBD_COLON_SAMPLE_COL = "Sample"
+
+# --- HCA source-data corruption (2026-09-09) -- RESOLVED, kept for provenance ---
+#
+# Two of the three HCA-hosted raw matrices were found truncated AT THE SOURCE
+# (independently re-probed via HTTP Range requests directly against the
+# resolved S3 URL, bypassing our own download code entirely -- the S3 object
+# itself reported a total size matching the truncated download exactly, not a
+# network/resume artifact): gene_sorted-Epi.matrix.mtx had 52.6% of its
+# declared data lines, gene_sorted-Imm.matrix.mtx had 4.6%; gene_sorted-Fib
+# was independently verified complete. Worked around at the time via
+# export_ibd_colon_rds.R, which pulled counts/meta.data/tsne out of the
+# discovery-cohort train.{Epi,Fib,Imm}.seur.rds objects (17 of 30 donors) into
+# IBD_COLON_RDS_EXPORT_DIR, readable without installing Seurat (a Seurat
+# object's S4 slots are plain attributes; only the already-installed `Matrix`
+# package is needed for the dgCMatrix counts slot).
+#
+# SUPERSEDED same day: the user created an SCP259 account and provided a
+# bulk-download auth code, giving genuinely complete, full-30-donor-cohort
+# copies of all 3 matrices plus real full-cohort tSNE coordinates
+# ({Epi,Fib,Imm}.tsne.txt) -- each verified complete against its own mtx
+# header / expected row count before use (see
+# build_ibd_colon_h5ad.verify_mtx_complete). These now live at the same raw
+# paths (gene_sorted-*.matrix.mtx), and build_ibd_colon_h5ad.py reads them
+# directly for all 3 compartments -- the RDS-export fallback is no longer
+# consumed by that script. The corrupted HCA copies are kept at
+# raw/ibd_colon_atlas/corrupted_hca_backup/ (not deleted) and the RDS export
+# machinery is left in place (export_ibd_colon_rds.R,
+# IBD_COLON_RDS_EXPORT_DIR, the train.*.seur.rds files) as a documented
+# fallback if a future dataset needs the same recovery pattern -- see
+# ANALYSIS_SUMMARY.md for the full narrative of both the corruption finding
+# and the full-cohort resolution.
+#
+# The RDS metadata's Health column used "Uninflamed" where all.meta2.txt uses
+# "Non-inflamed" for the identical concept -- IBD_COLON_HEALTH_MAP was the
+# harmonization for that RDS-only path; unused now that all 3 compartments
+# read Health from all.meta2.txt directly, kept only for the (still-valid,
+# just no longer exercised) RDS export.
+IBD_COLON_RDS_EXPORT_DIR = os.path.join(IBD_COLON_DIR, "rds_export")
+IBD_COLON_HEALTH_MAP = {"Uninflamed": "Non-inflamed"}  # RDS-export path only, not used by the current full-cohort build
+
 FIGURES_DIR = "/data/ANTXR2/figures"
 
 # --- Phase 2 prep: single-cell co-expression working set -----------------------

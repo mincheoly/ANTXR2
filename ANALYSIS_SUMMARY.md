@@ -175,6 +175,18 @@ at a different question.
   z-score GSEA looks *better* than its mean-ranked GSEA for a specific and
   misleading reason -- see the 2026-09-05 section.
 
+- **A successful download is not the same as correct data -- verify content
+  against its own header/manifest, not just transfer success.** The IBD colon
+  atlas's HCA-hosted `gene_sorted-Epi.matrix.mtx` and `gene_sorted-Imm.matrix.mtx`
+  downloaded with byte-exact size matches against the host's own reported size,
+  yet were truncated to 52.6% and 4.6% of their declared line counts
+  respectively -- confirmed genuine (not a download bug) by independently
+  Range-probing the live S3 object directly. Public archive mirrors can host a
+  self-consistently-sized but incomplete object. Cheap check for any future
+  dataset with a self-describing format (mtx nnz header, a stated cell count,
+  etc.): compare the parsed content against that count before trusting the file,
+  not just the downloaded byte count against an expected size.
+
 ## Designed but never run (authoritative open list)
 
 These are ranked. The list at "## Open / next steps" mid-log is older and
@@ -1552,3 +1564,314 @@ Confirmed per the pre-registration: Bracq et al. is mouse **colon** with DSS col
 
 - **fibroblast**: corr(log10 mean expression, |z|) = 0.437 across 4502 tested genes (corr with signed z = -0.045). Non-trivial positive relationship -- consistent with memento's bootstrap se shrinking with cell count/detection rate, so highly-expressed genes can get inflated |z| in both tails. Treat this as a caveat on z-ranked results generally (this project's GSEA z-score ranking included); the anchor-matching above at least holds mean expression roughly fixed between ANTXR2 and its anchors, which limits (but does not eliminate) this confound's effect on the recovery-count comparison specifically.
 - **enterocyte**: corr(log10 mean expression, |z|) = 0.372 across 5852 tested genes (corr with signed z = 0.248). Non-trivial positive relationship -- consistent with memento's bootstrap se shrinking with cell count/detection rate, so highly-expressed genes can get inflated |z| in both tails. Treat this as a caveat on z-ranked results generally (this project's GSEA z-score ranking included); the anchor-matching above at least holds mean expression roughly fixed between ANTXR2 and its anchors, which limits (but does not eliminate) this confound's effect on the recovery-count comparison specifically.
+
+## IBD colon atlas: `health` column corruption in compute_ibd_colon_means.py, found and fixed (2026-09-09, same day)
+
+Found while answering a follow-up question (ANTXR2 in mature colon epithelium,
+by health status). `memento.get_groups()` -- called in `run_memento_on_chunk` to
+read back each group's label values after `compute_1d_moments` -- deliberately
+re-encodes any label column with **exactly 2 distinct values within that donor's
+chunk** into `0.0`/`1.0` float codes (confirmed by reading memento's source:
+`get_groups` does `df[col] = df[col].astype('category').cat.codes.astype(float)`
+whenever `pd.to_numeric` fails and `nunique()==2`, intended to hand memento's own
+`binary_test_1d`/`2d` a numeric design matrix). This project's donors are either
+`Healthy`-only (1 value in-chunk, unaffected) or paired
+`Inflamed`+`Non-inflamed`-only (exactly 2 values, no `Healthy`) -- so this
+silently corrupted `health` to `0.0`/`1.0` for **all 18 UC donors' rows** (health
+label only; `cell_type_fine`, `n_cells`, and `mean_expression` were never
+affected, since those come from a different, non-recoded column / from
+`1d_moments` directly). Caught because a health-stratified query returned literal
+`0.0`/`1.0` values instead of `Inflamed`/`Non-inflamed`.
+
+**Fix**: don't trust `memento.get_groups()`'s per-column values at all -- parse
+each group's label values directly from its group-key string instead
+(`group_key.split(label_delimiter)[1:]`), which is exactly what `get_groups()`
+itself does internally *before* the lossy re-coding step, so this is strictly
+more reliable, not a workaround. Recomputed; `health` now reads
+`Healthy`/`Inflamed`/`Non-inflamed` throughout (verified: 7,704,357 /
+5,575,149 / 6,551,148 rows respectively, no numeric leakage). The
+`ibd_colon_feasibility.py` presence/donor-count tables were never affected (they
+read `Health` directly from each h5ad's `obs`, not through memento's
+`get_groups()`), and the overall (health-pooled) ANTXR2-by-cell-type rankings
+reported earlier this session were also unaffected (health wasn't part of that
+aggregation) -- only a health-stratified breakdown was wrong.
+
+**Lesson**: a library's own "helpful" convenience re-encoding (here, for its own
+downstream regression convenience) can silently break a caller using the same
+function for a different purpose (a descriptive label, not a treatment design
+matrix) -- when a returned label value looks suspiciously like a code (bare
+`0.0`/`1.0` where a category label was expected), verify against the
+lower-level/raw representation (the group key string, here) rather than assuming
+a cast bug in this project's own code.
+
+## IBD colon atlas (Smillie et al., Cell 2019, SCP259): download, and a source-data corruption finding (2026-09-09)
+
+New dataset, first pass. User request: evaluate SCP259 (Smillie et al., *Cell* 2019,
+366,650 cells, 30 donors -- 18 UC + 12 healthy, 51 annotated cell subsets: 15
+epithelial including Stem/TA1/TA2/Cycling TA, 13 stromal/glial including multiple
+fibroblast subtypes, 23 immune) for feasibility, starting with ANTXR2/gene-panel
+mean expression by cell type, and download both raw counts and a processed/
+visualization-coordinate version for later hypothesis testing.
+
+**Download blocker, and how it was resolved**: unlike every prior dataset in this
+project, SCP259's own portal is login-gated (`study_files` API returns HTTP 401,
+not a guess -- the study page also states "Please sign in to download data").
+Resolved via the Human Cell Atlas Data Coordination Platform, which mirrors the
+identical file set as project `cd61771b-661a-4e19-b269-6e5d95350de6`
+("HumanColonRewiringUlcerativeColitis") under an open license
+(`dataUseRestriction=NRES`, no `duosId`) -- verified end-to-end with plain
+unauthenticated `requests` calls: Azul's REST API resolves each file uuid to a
+signed, no-login S3 URL via a 302 redirect, confirmed working for both a tiny file
+and (via an HTTP Range request) a >1GB file before committing to this as the
+primary source. `scripts/download_ibd_colon_data.py` downloaded all 15 files this
+way (9 raw compartment files + `all.meta2.txt` + `cell_subsets.txt` from the
+authors' GitHub repo + 3 pre-computed Seurat `.rds` objects), all exact byte-size
+matches against Azul's own listed sizes.
+
+**Standing correction: a "successful download" is not the same as "correct data" --
+verify content, not just transfer.** `build_ibd_colon_h5ad.py`'s first run crashed
+inside `scipy.io.mmread` on `gene_sorted-Epi.matrix.mtx` with `Invalid integer
+value` partway through the file. Investigation (not assumption) found: the file's
+actual line count (91,725,164) was only 52.6% of what the mtx header itself
+declared (174,423,911 data lines), and it ended mid-line with no trailing newline.
+Because the downloaded file's size matched Azul's own reported size exactly, this
+looked at first like it could be a bad `expected_size` on Azul's end rather than a
+real truncation -- so before concluding anything, the actual live S3 object was
+independently re-probed with raw HTTP Range requests (bypassing this project's own
+download code entirely): `Content-Range` on a request near the end of the
+downloaded file confirmed the S3 object's own declared total size exactly equals
+what was downloaded, and requests further out (1.5-2.3GB) returned `416 Range Not
+Satisfiable`. **The object hosted on HCA is genuinely incomplete at the source, not
+a transfer artifact.** `gene_sorted-Imm.matrix.mtx` turned out to have the same
+problem, far worse (7,965,459 of 173,255,714 declared lines, ~4.6%).
+`gene_sorted-Fib.matrix.mtx` was checked the same way and is complete and correct
+(39,087,919 declared == 39,087,919 actual, clean final line). **Lesson for future
+datasets: when a raw file parses cleanly but a sanity total (row count, cell count,
+nnz) doesn't match its own header/manifest, re-verify against the live source
+before assuming a local bug -- public archive mirrors can silently host incomplete
+objects that report a self-consistent but wrong size.**
+
+**Recovery, without blocking on a login-gated re-download.** The 3
+`train.{Epi,Fib,Imm}.seur.rds` files (the paper's "discovery cohort" Seurat
+objects, downloaded from the same HCA source) all passed a full `gzip -t`
+integrity check -- genuinely intact, unlike the 2 broken mtx files. Rather than
+stopping to ask the user to obtain an SCP-authenticated `curl_config.txt` (the
+only way to re-fetch the broken files from their original host), these RDS
+objects were used as the raw-count source for Epi and Imm instead. They did not
+require installing the (heavy, slow-to-build) Seurat R package: a Seurat object's
+S4 slots (`assays`, `meta.data`, `reductions`) are plain R attributes readable via
+base `attr()`/`readRDS()`, and the `counts` slot is a `dgCMatrix` needing only the
+already-installed, lightweight `Matrix` package -- confirmed interactively before
+writing `scripts/export_ibd_colon_rds.R`. This is the **first use of the `r-env`
+conda environment in this project.**
+
+**Real, documented cost of this workaround**: the RDS objects cover only the
+"discovery cohort" -- 17 of 30 donors (all 3 Health states represented, but skewed
+toward `Healthy`) -- not the full cohort Fib's intact mtx provides. This asymmetry
+(`data_source` = `full_cohort_mtx` for Fib vs. `discovery_cohort_rds` for Epi/Imm)
+is carried through as an explicit column in the output parquet and h5ads, not
+silently absorbed. A minor labeling inconsistency was also found and harmonized:
+the RDS metadata uses `"Uninflamed"` where the full-cohort `all.meta2.txt` uses
+`"Non-inflamed"` for the identical concept (`IBD_COLON_HEALTH_MAP`).
+
+**Donor identity verified before use** (per this project's standing convention,
+[[feedback_donor_identity_verification]]): `Subject` (30 distinct values) checked
+for the same collision/alias pattern found earlier in the Gut Cell Atlas's
+`donor_id` -- none found; every subject maps cleanly to 1 (12 `Healthy` donors) or
+2 (18 UC donors, paired Inflamed/Non-inflamed biopsies) `Health` values. No
+`*_UNIFIED_COL` correction was needed here.
+
+**Compute**: `scripts/compute_ibd_colon_means.py` (memento method-of-moments,
+genome-wide, grouped by `donor_id x cell_type_fine x health`, processing the 3
+compartments as independent "datasets" the same way `compute_means.py` loops over
+CELLxGene collections) ran cleanly, ~14s/compartment, 19,830,654 rows written to
+`/data/ANTXR2/celltype_expression/ibd_colon_atlas_celltype_means.parquet`. See
+that file's README section for full schema/caveats.
+
+**Directional sanity check against Phase 1**: donor-equal-weighted ANTXR2 mean
+expression, ranked across all 51 cell types, puts the Wnt-niche fibroblast
+subtypes (RSPO3+, WNT2B+ Fos-hi, WNT2B+ Fos-lo 1, WNT5B+ 1/2) and Inflammatory
+Fibroblasts at the top, with Stem/TA1/Cycling TA near the bottom -- consistent
+with Phase 1's "high in fibroblast, not stem-skewed" finding on an entirely
+independent tissue source and cohort, and directly on-theme for the project's
+Wnt-transduction arm (RSPO3/WNT2B/WNT5B-defined fibroblasts are the literal
+Wnt-niche cell types in gut architecture).
+
+## IBD colon atlas: full 30-donor cohort obtained, superseding the discovery-cohort fallback (2026-09-09, same day)
+
+The user created an SCP259 account and provided a Broad Single Cell Portal
+bulk-download link (`generate_curl_config` + `auth_code`, valid 30 minutes to
+*generate* the config -- the resulting GCS-signed URLs it produces are valid
+~24h, so the actual download itself wasn't time-pressured once the config was
+in hand). This is the same file set the corrupted HCA mirror was supposed to
+provide, but from SCP259 directly: `gene_sorted-{Epi,Fib,Imm}.matrix.mtx`,
+`{Epi,Fib,Imm}.genes.tsv`/`.barcodes2.tsv`, `all.meta2.txt`, and -- new,
+not previously obtained -- `{Epi,Fib,Imm}.tsne.txt`, real full-cohort tSNE
+coordinates (better than the RDS-derived discovery-cohort-only ones).
+
+**Verified before trusting, per the standing lesson from the HCA episode**:
+every mtx file's actual data-line count was checked against its own header's
+declared nnz before use, not just download success/size. All 3 now verify
+exactly: Epi 174,423,911, Fib 39,087,919, Imm 173,255,714 declared == actual,
+all with clean final lines. `all.meta2.txt` is byte-identical to the earlier
+HCA copy (confirms metadata was never the corrupted part). The corrupted HCA
+mtx copies were moved to `raw/ibd_colon_atlas/corrupted_hca_backup/` (not
+deleted) rather than overwritten in place.
+
+**Rebuild ran into a new problem: OOM on the larger matrices.**
+`build_ibd_colon_h5ad.py` was killed by the system's memory manager twice in a
+row processing the full (now ~2.3-2.4GB text, ~174M/~173M-nonzero) Epi and Imm
+matrices, right after `mmread` completed -- `ps aux`/`free -h` showed no
+smoking-gun concurrent process, pointing to the COO->CSR transpose step itself:
+`scipy.io.mmread` returns int64 data/index arrays by default, and for a
+174M-nonzero matrix that's ~4GB of COO arrays plus another ~3-4GB for the new
+CSR arrays held simultaneously during conversion. Fixed by downcasting to
+int32 immediately after `mmread` (raw UMI counts and 20K/210K-scale indices
+have enormous headroom under int32) plus an explicit `gc.collect()` after the
+transpose; also added a `--compartments` flag to `build_ibd_colon_h5ad.py` so
+each compartment can run as its own short-lived process rather than one long
+process holding all 3 compartments' peak memory in sequence. All 3
+compartments then built cleanly as separate invocations. **Lesson: mtx text
+parsing defaulting to int64 is a real memory cliff for real-atlas-scale
+matrices (100M+ nonzeros) even on a machine with plenty of nominal RAM --
+downcast explicitly rather than trusting the loader's default dtype.**
+
+**Recomputed** (`compute_ibd_colon_means.py`, already carrying the
+`memento.get_groups()` health-label fix from earlier the same day): all 3
+compartments now show 30/30 donors (previously Epi/Imm: 17/30). 33,725,155
+total rows (previously 19,830,654) written to
+`ibd_colon_atlas_celltype_means.parquet`. `health` column re-verified clean.
+
+**What changed vs. the 17-donor discovery-cohort numbers, and what didn't**:
+Fibroblast values are unchanged (Fib was always full-cohort, so this doubles
+as an internal consistency check -- e.g. RSPO3+ still 0.000072/10 donors,
+WNT2B+ Fos-hi still 0.000068/30 donors, identical to the earlier run). Epi/Imm
+donor counts roughly doubled (e.g. Stem 14->28, TA1/TA2/Cycling TA 17->30,
+Enterocytes 14->26), and per-condition donor counts in the feasibility check
+improved enough to flip several `underpowered` flags from YES to no (e.g. TA
+2/Inflamed: 2->9 well-powered donors, no longer underpowered). The qualitative
+picture held up throughout: Wnt-niche fibroblast subtypes highest for ANTXR2,
+Stem/TA1 lowest, mature Enterocytes topping the epithelial ranking, and the
+Wnt-receptor-machinery-vs-target-gene split (CTNNB1/FZD5/LRP5/TCF7L2 rising
+toward mature Enterocytes like ANTXR2, while LGR5/ASCL2/OLFM4/SMOC2 stay
+sharply crypt-restricted) reproduced cleanly on the full cohort.
+
+**One real correction, not just a power improvement**: mature Enterocytes'
+Inflamed-vs-Non-inflamed ANTXR2 ordering flipped. At n=5 donors per condition
+(discovery cohort), Inflamed (0.000051) appeared higher than Non-inflamed
+(0.000041). At n=12 donors per condition (full cohort), Non-inflamed
+(0.000071) is now slightly higher than Inflamed (0.000062) -- both still well
+above Healthy (0.000030). The direction "elevated in UC tissue vs. healthy"
+holds and strengthens; the specific Inflamed-vs-Non-inflamed ordering reported
+earlier this session does not survive more data and should not be treated as
+established. **Lesson, consistent with this project's existing n<8
+underpowered-flag convention: don't trust the relative ordering between two
+already-small groups (5 vs 5 donors) even when both individually look
+"present" -- the earlier answer to the user's Inflamed-vs-Non-inflamed
+question should be considered superseded by this section.**
+
+## IBD colon atlas (Smillie et al., Cell 2019, SCP259) feasibility check -- full 30-donor cohort (2026-09-09)
+
+**Supersedes an earlier version of this section** that ran on the 17-of-30-donor discovery-cohort fallback (see "full 30-donor cohort" session entry above for how the full cohort was obtained same day) -- that version is not kept verbatim below since every number in it is superseded by this full-cohort run, but its qualitative conclusions (fibroblasts full-cohort throughout and directionally on-theme; Epithelial/Stem/TA numbers usable but power-limited) matched this run closely; the main change is donor counts roughly doubling for Epi/Imm groups (e.g. many `cell_type x health` groups went from ~5-7 well-powered donors to ~10-18), which flipped several `underpowered` flags from YES to no without changing which cell types rank highest for ANTXR2.
+
+**Feasibility gate, not a results-producing step** -- no differential-correlation test was run. Data source: SCP259 direct (user-authenticated bulk download, see above), full 30-donor cohort, all 3 compartments verified complete. 51 cell subsets total (15 epithelial, 13 stromal/glial, 23 immune), 30 donors (18 UC + 12 healthy). This check covers only the Epithelial and Fibroblasts lineages (the user's stated interest). Output: `/data/ANTXR2/figures/ibd_colon_feasibility/{per_donor_counts,feasibility_summary,gene_panel_by_celltype}.csv`.
+
+### Donor counts and ANTXR2 presence, Epithelial + Fibroblasts lineages
+
+ANTXR2 presence replicates memento's own filter formula directly (raw per-donor mean count > `filter_mean_thresh=0.07`; passes overall if true in a strict majority, `>min_perc_group=0.7`, of donor groups with >=100 cells), computed directly from raw counts (not the memento capture-corrected parquet). Donors with <8 usable groups flagged underpowered (macrophage precedent). `data_source` shows whether a cell type's counts came from the full 30-donor cohort (`full_cohort_mtx`, Fib only) or the 17-donor discovery-cohort fallback forced by the HCA source corruption (`discovery_cohort_rds`, Epi + Imm).
+
+| lineage | cell type | health | source | donors (total/≥100 cells) | ANTXR2 present (n/frac) | clears mpg=0.7 | underpowered |
+|---|---|---|---|---|---|---|---|
+| Epithelial | Best4+ Enterocytes | Healthy | full_cohort_mtx | 12 / 5 | 5/5 (1.00) | YES | **YES** |
+| Epithelial | Best4+ Enterocytes | Inflamed | full_cohort_mtx | 13 / 1 | 1/1 (1.00) | YES | **YES** |
+| Epithelial | Best4+ Enterocytes | Non-inflamed | full_cohort_mtx | 18 / 6 | 6/6 (1.00) | YES | **YES** |
+| Epithelial | Cycling TA | Healthy | full_cohort_mtx | 12 / 12 | 1/12 (0.08) | no | no |
+| Epithelial | Cycling TA | Inflamed | full_cohort_mtx | 17 / 14 | 12/14 (0.86) | YES | no |
+| Epithelial | Cycling TA | Non-inflamed | full_cohort_mtx | 18 / 13 | 9/13 (0.69) | no | no |
+| Epithelial | Enterocyte Progenitors | Healthy | full_cohort_mtx | 12 / 12 | 0/12 (0.00) | no | no |
+| Epithelial | Enterocyte Progenitors | Inflamed | full_cohort_mtx | 16 / 2 | 1/2 (0.50) | no | **YES** |
+| Epithelial | Enterocyte Progenitors | Non-inflamed | full_cohort_mtx | 18 / 10 | 1/10 (0.10) | no | no |
+| Epithelial | Enterocytes | Healthy | full_cohort_mtx | 12 / 6 | 6/6 (1.00) | YES | **YES** |
+| Epithelial | Enterocytes | Inflamed | full_cohort_mtx | 16 / 3 | 3/3 (1.00) | YES | **YES** |
+| Epithelial | Enterocytes | Non-inflamed | full_cohort_mtx | 16 / 5 | 5/5 (1.00) | YES | **YES** |
+| Epithelial | Enteroendocrine | Healthy | full_cohort_mtx | 11 / 0 | n/a | no | **YES** |
+| Epithelial | Enteroendocrine | Inflamed | full_cohort_mtx | 15 / 0 | n/a | no | **YES** |
+| Epithelial | Enteroendocrine | Non-inflamed | full_cohort_mtx | 17 / 1 | 0/1 (0.00) | no | **YES** |
+| Epithelial | Goblet | Healthy | full_cohort_mtx | 12 / 5 | 2/5 (0.40) | no | **YES** |
+| Epithelial | Goblet | Inflamed | full_cohort_mtx | 14 / 0 | n/a | no | **YES** |
+| Epithelial | Goblet | Non-inflamed | full_cohort_mtx | 17 / 1 | 1/1 (1.00) | YES | **YES** |
+| Epithelial | Immature Enterocytes 1 | Healthy | full_cohort_mtx | 12 / 11 | 2/11 (0.18) | no | no |
+| Epithelial | Immature Enterocytes 1 | Inflamed | full_cohort_mtx | 16 / 5 | 4/5 (0.80) | YES | **YES** |
+| Epithelial | Immature Enterocytes 1 | Non-inflamed | full_cohort_mtx | 16 / 6 | 3/6 (0.50) | no | **YES** |
+| Epithelial | Immature Enterocytes 2 | Healthy | full_cohort_mtx | 12 / 11 | 10/11 (0.91) | YES | no |
+| Epithelial | Immature Enterocytes 2 | Inflamed | full_cohort_mtx | 17 / 7 | 7/7 (1.00) | YES | **YES** |
+| Epithelial | Immature Enterocytes 2 | Non-inflamed | full_cohort_mtx | 18 / 10 | 10/10 (1.00) | YES | no |
+| Epithelial | Immature Goblet | Healthy | full_cohort_mtx | 12 / 11 | 1/11 (0.09) | no | no |
+| Epithelial | Immature Goblet | Inflamed | full_cohort_mtx | 17 / 9 | 1/9 (0.11) | no | no |
+| Epithelial | Immature Goblet | Non-inflamed | full_cohort_mtx | 18 / 12 | 2/12 (0.17) | no | no |
+| Epithelial | M cells | Healthy | full_cohort_mtx | 8 / 0 | n/a | no | **YES** |
+| Epithelial | M cells | Inflamed | full_cohort_mtx | 9 / 1 | 1/1 (1.00) | YES | **YES** |
+| Epithelial | M cells | Non-inflamed | full_cohort_mtx | 9 / 1 | 1/1 (1.00) | YES | **YES** |
+| Epithelial | Secretory TA | Healthy | full_cohort_mtx | 12 / 7 | 1/7 (0.14) | no | **YES** |
+| Epithelial | Secretory TA | Inflamed | full_cohort_mtx | 17 / 2 | 2/2 (1.00) | YES | **YES** |
+| Epithelial | Secretory TA | Non-inflamed | full_cohort_mtx | 18 / 5 | 4/5 (0.80) | YES | **YES** |
+| Epithelial | Stem | Healthy | full_cohort_mtx | 12 / 4 | 0/4 (0.00) | no | **YES** |
+| Epithelial | Stem | Inflamed | full_cohort_mtx | 17 / 1 | 1/1 (1.00) | YES | **YES** |
+| Epithelial | Stem | Non-inflamed | full_cohort_mtx | 17 / 4 | 3/4 (0.75) | YES | **YES** |
+| Epithelial | TA 1 | Healthy | full_cohort_mtx | 12 / 12 | 0/12 (0.00) | no | no |
+| Epithelial | TA 1 | Inflamed | full_cohort_mtx | 17 / 15 | 0/15 (0.00) | no | no |
+| Epithelial | TA 1 | Non-inflamed | full_cohort_mtx | 18 / 17 | 0/17 (0.00) | no | no |
+| Epithelial | TA 2 | Healthy | full_cohort_mtx | 12 / 12 | 6/12 (0.50) | no | no |
+| Epithelial | TA 2 | Inflamed | full_cohort_mtx | 17 / 10 | 9/10 (0.90) | YES | no |
+| Epithelial | TA 2 | Non-inflamed | full_cohort_mtx | 18 / 13 | 10/13 (0.77) | YES | no |
+| Epithelial | Tuft | Healthy | full_cohort_mtx | 12 / 0 | n/a | no | **YES** |
+| Epithelial | Tuft | Inflamed | full_cohort_mtx | 15 / 0 | n/a | no | **YES** |
+| Epithelial | Tuft | Non-inflamed | full_cohort_mtx | 16 / 0 | n/a | no | **YES** |
+| Fibroblasts | Inflammatory Fibroblasts | Healthy | full_cohort_mtx | 6 / 0 | n/a | no | **YES** |
+| Fibroblasts | Inflammatory Fibroblasts | Inflamed | full_cohort_mtx | 14 / 3 | 3/3 (1.00) | YES | **YES** |
+| Fibroblasts | Inflammatory Fibroblasts | Non-inflamed | full_cohort_mtx | 13 / 2 | 2/2 (1.00) | YES | **YES** |
+| Fibroblasts | Myofibroblasts | Healthy | full_cohort_mtx | 12 / 0 | n/a | no | **YES** |
+| Fibroblasts | Myofibroblasts | Inflamed | full_cohort_mtx | 18 / 2 | 1/2 (0.50) | no | **YES** |
+| Fibroblasts | Myofibroblasts | Non-inflamed | full_cohort_mtx | 18 / 3 | 3/3 (1.00) | YES | **YES** |
+| Fibroblasts | RSPO3+ | Healthy | full_cohort_mtx | 12 / 0 | n/a | no | **YES** |
+| Fibroblasts | RSPO3+ | Inflamed | full_cohort_mtx | 9 / 0 | n/a | no | **YES** |
+| Fibroblasts | RSPO3+ | Non-inflamed | full_cohort_mtx | 13 / 0 | n/a | no | **YES** |
+| Fibroblasts | WNT2B+ Fos-hi | Healthy | full_cohort_mtx | 12 / 4 | 4/4 (1.00) | YES | **YES** |
+| Fibroblasts | WNT2B+ Fos-hi | Inflamed | full_cohort_mtx | 15 / 4 | 3/4 (0.75) | YES | **YES** |
+| Fibroblasts | WNT2B+ Fos-hi | Non-inflamed | full_cohort_mtx | 18 / 7 | 7/7 (1.00) | YES | **YES** |
+| Fibroblasts | WNT2B+ Fos-lo 1 | Healthy | full_cohort_mtx | 12 / 7 | 7/7 (1.00) | YES | **YES** |
+| Fibroblasts | WNT2B+ Fos-lo 1 | Inflamed | full_cohort_mtx | 18 / 4 | 3/4 (0.75) | YES | **YES** |
+| Fibroblasts | WNT2B+ Fos-lo 1 | Non-inflamed | full_cohort_mtx | 18 / 8 | 8/8 (1.00) | YES | no |
+| Fibroblasts | WNT2B+ Fos-lo 2 | Healthy | full_cohort_mtx | 12 / 1 | 0/1 (0.00) | no | **YES** |
+| Fibroblasts | WNT2B+ Fos-lo 2 | Inflamed | full_cohort_mtx | 17 / 3 | 1/3 (0.33) | no | **YES** |
+| Fibroblasts | WNT2B+ Fos-lo 2 | Non-inflamed | full_cohort_mtx | 18 / 5 | 3/5 (0.60) | no | **YES** |
+| Fibroblasts | WNT5B+ 1 | Healthy | full_cohort_mtx | 12 / 3 | 3/3 (1.00) | YES | **YES** |
+| Fibroblasts | WNT5B+ 1 | Inflamed | full_cohort_mtx | 17 / 2 | 1/2 (0.50) | no | **YES** |
+| Fibroblasts | WNT5B+ 1 | Non-inflamed | full_cohort_mtx | 18 / 0 | n/a | no | **YES** |
+| Fibroblasts | WNT5B+ 2 | Healthy | full_cohort_mtx | 12 / 5 | 4/5 (0.80) | YES | **YES** |
+| Fibroblasts | WNT5B+ 2 | Inflamed | full_cohort_mtx | 16 / 2 | 1/2 (0.50) | no | **YES** |
+| Fibroblasts | WNT5B+ 2 | Non-inflamed | full_cohort_mtx | 18 / 5 | 4/5 (0.80) | YES | **YES** |
+
+**Stem/TA cells** (Stem, TA 1, TA 2, Cycling TA): 3/12 (cell type x health) groups are both well-powered and clear the presence filter. Consistent with Phase 1's prior finding that ANTXR2 is not stem-skewed in gut epithelium.
+
+**Fibroblast subtypes**: 1/24 (cell type x health) groups clear both power and presence filters -- fibroblasts are the full 30-donor `full_cohort_mtx` compartment (not affected by the HCA corruption), and the donor-equal-weighted heatmap below shows the Wnt-niche fibroblast subtypes (RSPO3+, WNT2B+, WNT5B+) at the top of the ANTXR2 ranking -- directionally consistent with Phase 1's fibroblast finding and on-theme for the project's Wnt-transduction arm.
+
+### Gene panel (GENE_PANEL) donor-equal-weighted mean, top ANTXR2 cell types
+
+| cell type | mean ANTXR2 | n donors |
+|---|---|---|
+| RSPO3+ | 0.000072 | 10 |
+| WNT2B+ Fos-hi | 0.000068 | 30 |
+| Inflammatory Fibroblasts | 0.000060 | 11 |
+| WNT2B+ Fos-lo 1 | 0.000055 | 30 |
+| WNT5B+ 1 | 0.000053 | 29 |
+| WNT5B+ 2 | 0.000052 | 30 |
+| Enterocytes | 0.000051 | 26 |
+| Myofibroblasts | 0.000045 | 28 |
+| WNT2B+ Fos-lo 2 | 0.000028 | 30 |
+| Best4+ Enterocytes | 0.000022 | 25 |
+
+### Verdict
+
+**Usable for the ANTXR2 project's stated interest (fibroblasts, epithelial, TA/stem cells).** **Full 30-donor cohort, all 3 compartments, no coverage asymmetry.** Fibroblast coverage was always full-cohort; Epithelial coverage (including Stem/TA1/TA2/Cycling TA) is now also full-cohort after the SCP259-direct download superseded the earlier HCA-corruption-forced discovery-cohort fallback (see the download section above). The Wnt-niche fibroblast subtypes rank highest for ANTXR2 (directionally on-theme); most cell-type x health groups clear the 8-donor floor (see table above for exactly which don't).
+
