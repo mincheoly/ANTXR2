@@ -109,6 +109,54 @@ the opposite direction to the discarded "receptor arm goes up" story.
 type is too permissive for memento correlations. On this data the pegged and
 no-estimate rates only fall below ~5% above roughly 250 cells per group.
 
+## Is there a better-powered cell type? No — the ceiling is ANTXR2 detection
+
+Asked whether some larger cell type would give robust estimates. It would not,
+and the reason is not cell numbers.
+
+**Gate 1, cells.** At >=250 cells per donor x cell type, only 2 of 33 clusters
+have >=8 donors present in both paired states (Plasma 14, TA 1 8). At >=500
+cells, one (Plasma).
+
+**Gate 2, ANTXR2 detection — this is the binding one.** ANTXR2 is detected in
+1-11% of cells in every large cluster: Plasma 2.2%, TA 1 1.1%, CD4+ Memory
+1.9%, Cycling TA 7.8%. The clusters with real detection are all small:
+Inflammatory Fibroblasts 25.8% (2,268 cells), Enterocytes 21.7% (4,517),
+WNT2B+ Fos-lo 1 19.6% (6,350), Best4+ Enterocytes 17.6% (3,286). Nothing is
+both big and ANTXR2-positive.
+
+The effective sample size is therefore **ANTXR2+ cells per donor**, not cells.
+Combined estimator failure (pegged at |r|=1 **or** no estimate returned) falls
+monotonically against it:
+
+| ANTXR2+ cells per donor x cell type | n | estimates that fail |
+|---|---|---|
+| 0-5 | 1080 | 41.9% |
+| 6-10 | 714 | 33.1% |
+| 11-20 | 894 | 26.6% |
+| 21-50 | 626 | 17.7% |
+| >50 | 435 | 9.7% |
+
+Note the pegged rate *alone* is non-monotone (6.9% in the 0-5 bin, peaking at
+13.4% in 6-10): the very sparsest groups return NaN instead of a pegged value.
+The two failure modes must be counted together — Spearman of pegged-vs-ANTXR2+
+alone is rho = 0.003, p = 0.83, which would be misread as "no relationship".
+
+**At the >=50 ANTXR2+ / >=8 paired donors target, zero groups qualify.** Best
+cell type is 2 donors; pooling to lineage gets fibroblasts to 5, TA/stem and
+enterocyte lineage to 4. Pooling does not rescue it.
+
+SCP259 cannot support a donor-level ANTXR2 co-expression contrast at any
+granularity. This is a property of ANTXR2's detection rate in 10x 3' v2, not of
+the analysis choices — so it also bounds the non-inflamed arm that was proposed
+as the next step.
+
+**Design note discovered here:** the 30 subjects are 12 healthy controls plus
+18 UC patients, and all 18 patients contributed *both* an inflamed and a
+non-inflamed biopsy. The healthy-vs-inflamed contrast reported above is
+therefore unpaired (different people); non-inflamed-vs-inflamed would be paired
+within patient. That is the better design, but it hits the same ANTXR2 ceiling.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
