@@ -124,8 +124,36 @@ GENE_PANEL_ARMS = {
         ["LRP5", "LRP6"] + [f"FZD{i}" for i in range(1, 11)]
         + ["CTNNB1", "TCF7L2", "LGR5", "RNF43", "ZNRF3", "AXIN2"]
     ),
+    # WNT_ARM above is receptors/transducers plus four genes that are themselves
+    # Wnt targets under feedback -- it contains no pure transcriptional output,
+    # so it indexes feedback state rather than signalling flux. The panels below
+    # split Wnt genes by mechanism; see IBD_WNT_NOTES.md "Downstream targets".
+    #
+    # Transcriptional output with no direct feedback onto transduction. These
+    # are also much better detected in SCP259 epithelium than the receptor arm
+    # (all 10 clear the 0.07 raw-mean reliability floor).
+    "WNT_TARGET_EFFECTOR": [
+        "MYC", "CCND1", "CCND2", "ASCL2", "SOX9",
+        "EPHB2", "EPHB3", "CD44", "SMOC2", "OLFM4",
+    ],
+    # Negative feedback onto the pathway -- expression rises WITH activity in
+    # order to damp it, so these do not index flux monotonically.
+    "WNT_TARGET_FEEDBACK_NEG": ["AXIN2", "RNF43", "ZNRF3", "NKD1", "NOTUM", "SP5", "DKK1"],
+    # Positive feedback (RSPO co-receptor).
+    "WNT_TARGET_FEEDBACK_POS": ["LGR5"],
 }
-EXTENDED_GENE_PANEL = [g for arm in GENE_PANEL_ARMS.values() for g in arm]
+# NOTE: deliberately NOT all of GENE_PANEL_ARMS.values(). The WNT_TARGET_*
+# arms were added later; folding them in here would silently widen every
+# extraction that consumes EXTENDED_GENE_PANEL and invalidate cached outputs.
+_EXTENDED_ARMS = ("RECEPTORS", "CLEARANCE_ARM", "CLEARANCE_SUBSTRATE", "WNT_ARM")
+EXTENDED_GENE_PANEL = [g for a in _EXTENDED_ARMS for g in GENE_PANEL_ARMS[a]]
+
+# Opt-in panel for the downstream-output analysis.
+WNT_TARGET_PANEL = [
+    g
+    for a in ("WNT_TARGET_EFFECTOR", "WNT_TARGET_FEEDBACK_NEG", "WNT_TARGET_FEEDBACK_POS")
+    for g in GENE_PANEL_ARMS[a]
+]
 
 # --- IBD colon atlas (Smillie et al., Cell 2019, "Intra- and Inter-cellular
 # Rewiring of the Human Colon during Ulcerative Colitis") ---

@@ -346,6 +346,103 @@ by state, which rules out gross depth imbalance as the driver, but not
 chemistry imbalance — that needs Table S1. **This is exploratory and should not
 be reported as an inflammation effect without a paired-cohort replication.**
 
+## Downstream targets: the panel was measuring the wrong thing
+
+`GENE_PANEL_ARMS["WNT_ARM"]` is 14 receptors/transducers plus 4 genes that are
+themselves Wnt targets under negative feedback (AXIN2, RNF43, ZNRF3) or positive
+feedback (LGR5). It contains **no pure transcriptional output**. Since pathway
+components are feedback-regulated, their abundance is a poor proxy for signaling
+flux. Re-ran with an output panel split by function:
+
+- **effector** (output, no feedback onto transduction): MYC, CCND1, CCND2,
+  ASCL2, SOX9, EPHB2, EPHB3, CD44, SMOC2, OLFM4
+- **feedback** (negative): AXIN2, RNF43, ZNRF3
+- **amplifier** (positive, RSPO co-receptor): LGR5
+- **receptor/transducer**: CTNNB1, TCF7L2, FZD5, LRP5, LRP6
+
+### Detection: the output genes are far better measured
+
+Whole-epithelium raw means — OLFM4 5.69, CCND2 0.44, CD44 0.33, CCND1 0.31,
+SOX9 0.29, ASCL2 0.29, EPHB2 0.29, MYC 0.28, EPHB3 0.19, SMOC2 0.099. All 10
+clear the 0.07 reliability floor. By contrast **ZNRF3 (0.043) and LGR5 (0.033)
+do not**, and neither do 9 of 14 receptor-arm genes (all FZDs except FZD5,
+LRP6 at 0.063). ZNRF3 carried the largest effect in the original ranking and
+passes only inside crypt-enriched groups — a caveat on that result.
+
+Pegging and non-estimation drop accordingly (within cell type): effector 6.0%
+pegged / 18.9% no-estimate, vs receptor 11.5% / 12.2% and amplifier 4.3% /
+49.7%.
+
+### Internal crypt-villus gradient (SCP259, not imported)
+
+log2(crypt/differentiated) per donor, median over 30 donors. Crypt = Stem, TA 1,
+TA 2, Cycling TA; differentiated = Enterocytes, Immature Ent. 1/2, Best4+.
+
+**ANTXR2 = -1.81** (villus), confirming Task 4.2's -0.6164 in direction.
+Effectors are strongly crypt: ASCL2 +5.85, SMOC2 +5.21, EPHB3 +3.75,
+EPHB2 +3.34, CD44 +3.32, OLFM4 +2.72, MYC +2.52, CCND2 +2.11, SOX9 +1.67,
+CCND1 +0.58. Feedback: ZNRF3 +2.26, RNF43 +1.62, AXIN2 +1.10.
+Receptors are villus-side or flat: TCF7L2 -1.48, FZD5 -0.83, CTNNB1 -0.82,
+LRP5 -0.54, LRP6 +0.07.
+
+### The positive pooled correlation was a receptor artifact
+
+Median pooled corr with ANTXR2, by class (healthy / uninvolved / inflamed):
+
+| class | pooled | within cell type |
+|---|---|---|
+| receptor | **+0.140 / +0.233 / +0.237** | -0.056 / +0.030 / +0.023 |
+| effector | -0.041 / -0.038 / -0.049 | -0.068 / -0.092 / -0.145 |
+| feedback | -0.035 / -0.026 / -0.042 | -0.072 / -0.086 / -0.123 |
+| amplifier | -0.021 / -0.049 / -0.053 | -0.058 / -0.150 / -0.122 |
+
+**Every positive number in the earlier analysis came from the receptor/
+transducer class.** Those genes are not Wnt output; they are villus-side
+housekeeping-like transcripts that co-vary with ANTXR2 because both track the
+differentiation axis. This supersedes the "villus-class partners go positive"
+framing in the Simpson section above — the villus class was the receptor class.
+
+### Actual Wnt output is negatively coupled to ANTXR2, and it is specific
+
+Within cell type, all three output classes are significantly negative in every
+state (effector Wilcoxon p=4.9e-11 healthy, 1.6e-04 uninvolved, 4.9e-10
+inflamed; cluster x partner medians as units).
+
+Anchor control — 30 random non-Wnt genes matched to the effector expression
+range, same pipeline. Effector correlations sit **below** the anchor floor:
+
+| state | anchors | effector | MW p |
+|---|---|---|---|
+| healthy | -0.053 (n=360) | -0.068 (n=119) | 0.0057 |
+| uninvolved | -0.053 (n=441) | -0.092 (n=145) | 0.17 |
+| inflamed | -0.077 (n=390) | -0.145 (n=124) | 0.0024 |
+
+So there is a Wnt-specific negative offset beyond background co-expression, in
+healthy and inflamed tissue.
+
+### State dependence: real at donor level, but weakly specific
+
+Paired within-patient (same donor, same cluster, same partner), inflamed minus
+uninvolved:
+
+| unit | effector | anchors |
+|---|---|---|
+| cluster x partner | -0.0708 (n=660, p=4.4e-06) | -0.0304 (n=2087, p=2.0e-04) |
+| **donor (honest unit)** | **-0.0856 (n=14, 9neg/5pos, p=0.035)** | -0.0391 (n=14, 8neg/6pos, p=0.36) |
+
+The cluster x partner test is pseudoreplicated; the donor-level test is the one
+to quote. Effector reaches p=0.035, anchors do not (p=0.36) — but the direct
+effector-vs-anchor comparison is only **p=0.070**, and the receptor class shifts
+by a similar amount (-0.113, p=0.33 at donor level). So a global drift toward
+more negative ANTXR2 correlations in inflamed tissue exists and the Wnt-output
+shift is roughly 2x it, without clean separation.
+
+**This partially revises the earlier null on the inflamed arm.** That null was
+computed on the receptor-heavy panel, where the signal is genuinely absent. With
+an output panel there is a donor-level effect at p=0.035 — nominal only, 14
+donors, and not separable from background at p<0.05. Treat as suggestive, not
+established; it needs replication in an independent paired cohort.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
