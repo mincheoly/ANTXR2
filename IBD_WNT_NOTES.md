@@ -443,6 +443,82 @@ an output panel there is a donor-level effect at p=0.035 — nominal only, 14
 donors, and not separable from background at p<0.05. Treat as suggestive, not
 established; it needs replication in an independent paired cohort.
 
+## RETRACTION: the "Wnt-specific negative coupling" was a detection artifact
+
+The specificity claim in the section above does not survive stratification by
+compartment. **Panels c and d of `fig_wnt_downstream.png` should not be used.**
+Superseded by `fig_detection_artifact.png`.
+
+### What went wrong
+
+The 30 anchor genes were matched to the effector expression range on **whole
+epithelium**. Effectors are strongly crypt-enriched (ASCL2 +5.85, SMOC2 +5.21),
+so that matching holds in crypt and breaks everywhere else. Median partner raw
+mean in surviving groups:
+
+| compartment | effectors | anchors |
+|---|---|---|
+| crypt | 0.374 | 0.261 |
+| **differentiated** | **0.032** | **0.183** |
+| other | 0.114 | 0.135 |
+
+In differentiated cells the effectors are ~6x less detected than their own
+"matched" controls. 74% of differentiated effector groups sit below raw mean
+0.15, vs 34% in crypt.
+
+### memento correlations go negative near the detection floor
+
+Spearman(group raw mean of partner, r) = **+0.099, p=4.4e-08** (n=3049). By
+decile of detection, median r: -0.084, -0.104, -0.091, -0.096, -0.077, -0.093,
+-0.048, +0.017, -0.032, -0.032. Everything below raw mean ~0.2 sits at
+r ~ -0.09 regardless of gene identity.
+
+Consequence: the entire effector-vs-anchor gap was in the differentiated
+compartment (healthy MW p=0.019, uninvolved p=0.010) and is absent in crypt
+(p=0.71 / 0.84 / 0.38), i.e. present only where the matching had failed.
+Stratifying both gene sets by detection level closes the gap in the low strata
+(p=0.43 / 0.13 / 0.93); two higher strata retain a gap (p=0.0083, p=0.0012)
+but those pool compartments and are not reproduced in the clean crypt test.
+
+**Rule for this project: anchor genes must be matched per compartment (or per
+cell type), never on whole-tissue expression, whenever the target panel has a
+strong spatial gradient.**
+
+## The crypt-under-stress test, done properly
+
+Motivation (user): SCP259 donors carry **no ANTXR2 variants**, so this is
+wild-type physiology. Under Bracq's model one would predict a *positive*
+ANTXR2-Wnt-output correlation in crypt cell types under stress, if ANTXR2 is
+co-induced with or permissive for Wnt output there.
+
+ANTXR2 detection constrains where this can be asked at all. By cluster (raw
+mean / % positive): Enterocytes 0.297/21.7, Best4+ 0.235/17.6, Imm Ent 2
+0.206/16.4, M cells 0.197/16.6, **TA 2 0.135/11.2, Cycling TA 0.091/7.8, Stem
+0.089/8.2**, Imm Ent 1 0.069/5.8, **TA 1 0.011/1.1**. The crypt compartment as a
+whole is at 0.062 -- *below* the 0.07 reliability floor. TA 1 is unusable.
+
+Clean test: Stem + Cycling TA + TA 2 only, partner groups above raw mean 0.15,
+donor-level medians, 4000-sample bootstrap CI.
+
+| state | n donors | effector r [95% CI] | vs 0 | anchors | vs anchor |
+|---|---|---|---|---|---|
+| healthy | 12 | -0.021 [-0.038, -0.006] | p=0.15 | +0.014 | p=0.26 |
+| uninvolved | 16 | +0.010 [-0.053, +0.099] | p=0.78 | +0.008 | p=0.53 |
+| inflamed | 16 | -0.071 [-0.145, +0.003] | p=0.23 | -0.003 | p=0.40 |
+
+Paired within-patient (inflamed - uninvolved): effector -0.028 (n=14, 9neg/4pos,
+p=0.28); anchors +0.070 (p=0.81); effector vs anchor p=0.40.
+
+**Null in every state.** 5/16 inflamed donors are positive. The predicted
+positive crypt correlation under stress is not observed; neither is the negative
+coupling claimed in the section above. Once detection is controlled there is no
+measurable ANTXR2-Wnt-output relationship in crypt in this dataset.
+
+This is a *negative result with limited power*, not evidence of no coupling:
+ANTXR2 sits at 8-11% detection in the three usable crypt clusters, and no
+donor carries an ANTXR2 variant. A wild-type cohort cannot test a
+loss-of-function model regardless of how well it is measured.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
