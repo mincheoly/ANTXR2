@@ -157,6 +157,90 @@ non-inflamed biopsy. The healthy-vs-inflamed contrast reported above is
 therefore unpaired (different people); non-inflamed-vs-inflamed would be paired
 within patient. That is the better design, but it hits the same ANTXR2 ceiling.
 
+## CORRECTIONS — supersede both sections above
+
+### 1. The power analysis above used the wrong reliability criterion
+
+The section "Is there a better-powered cell type?" gated on **ANTXR2-positive
+cells**. That is not the house criterion. Reliability is an **unnormalized raw
+mean of 0.07-0.1**, and a group does not need nonzero ANTXR2 in most of its
+cells to qualify. `group_correlations` already defaults to
+`filter_mean_thresh=0.07`, so the pipeline had always applied the right rule;
+the ANTXR2+ reframing was invented on top of code that was already correct.
+
+On the correct criterion (raw mean >= 0.07, >=50 cells) the dataset is **not**
+exhausted:
+
+| cluster | healthy | non-inflamed | inflamed | paired NI/I |
+|---|---|---|---|---|
+| Cycling TA | 1 | 11 | 13 | **9** |
+| TA 2 | 6 | 12 | 12 | **8** |
+| Immature Enterocytes 2 | 11 | 11 | 9 | 7 |
+| WNT2B+ Fos-hi | 8 | 10 | 6 | 4 |
+| Enterocytes | 9 | 8 | 6 | 4 |
+| WNT2B+ Fos-lo 1 | 10 | 9 | 6 | 4 |
+
+At the stricter 0.1 threshold Cycling TA still has 9 paired donors. So the
+paired non-inflamed vs inflamed contrast **is** supported in Cycling TA and
+TA 2, and Immature Enterocytes 2 (11 healthy / 9 inflamed) supports the
+unpaired one. "Zero groups qualify" was an artifact of the wrong gate.
+
+### 2. Pegging is a capture-rate artifact, and q is not 0.1-specific
+
+Swept q over Cycling TA (18,204 cells, 13 surviving Wnt partners, 572 donor x
+state estimates per q):
+
+| q | pegged \|r\|>0.99 | no estimate | median \|r\| |
+|---|---|---|---|
+| 0.05 | 13.5% | 13.3% | 0.295 |
+| 0.07 | 11.0% | 8.2% | 0.255 |
+| **0.10** | **8.0%** | **6.3%** | **0.212** |
+| 0.15 | 4.2% | 3.3% | 0.156 |
+| 0.20 | 2.8% | 3.0% | 0.126 |
+| 0.30 | 0.4% | 3.0% | 0.093 |
+| 0.50 | 0.2% | 3.0% | 0.059 |
+
+Pegging falls monotonically and essentially vanishes by q=0.3, and median |r|
+shrinks with it. Mechanistically this is expected: a smaller q attributes more
+observed variance to sampling noise, so more is subtracted from the denominator
+of cov/sqrt(var1*var2) and the ratio is pushed past 1. **Pegging is therefore a
+symptom of assuming too small a q, not (only) of thin donors.**
+
+Crucially, the *contrast* is robust to this. Spearman rho of the 13-partner
+delta vector against q=0.1 is >=0.80 across the entire 0.05-0.5 range
+(0.91 at 0.07, 0.93 at 0.15, 0.87 at 0.5). Sign flips occur only in partners
+whose delta is already ~0 at q=0.1 (FZD6 +0.001, FZD8 -0.029). The five largest
+effects — ZNRF3, FZD1, LRP5, FZD5, LGR5 — hold their sign throughout.
+
+**So q rescales every correlation but does not reorder the state contrast.** A
+better q would clean up the estimator; it would not change which partners move.
+
+### 3. Chemistry and saturation, from the paper rather than assumption
+
+An earlier note in this project recorded SCP259 as uniformly "10x 3' v2". That
+is **wrong**. Smillie 2019 used *two* chemistries, assigned per sample in its
+Table S1: the original **GemCode V1** platform and **Chromium Single Cell 3'
+V2**. `config.Q_CHEM_BY_ASSAY` covers 3' v2 and 5' v2 but has no GemCode V1
+entry, and V1 is the substantially less efficient chemistry — so a single
+global q is wrong here in a way that is *correlated with sample*, not just
+imprecise.
+
+**Sequencing saturation is never reported.** The string "saturation" does not
+appear anywhere in the paper, and no per-library metric ships with the SCP259
+release. `chem_capture_rate` requires it, so that route is unavailable for this
+dataset. `ASSUMED_SATURATION = 0.85` in config is explicitly flagged there as an
+assumption derived from a *different* dataset (E-MTAB-8901, developing gut) and
+must not be silently reused here.
+
+Per-sample median UMI spans 836 (N58 non-inflamed) to 6,461 (N26 non-inflamed),
+a 7.7-fold range, and the distribution is continuous rather than bimodal — so
+the V1/V2 split cannot be recovered from depth alone. Table S1 is needed.
+
+**Open item.** `pbmc_scaled_capture_rate` is the one route not requiring
+saturation, and SCP259 has an immune compartment to gate. It needs the pbmc8k
+reference from cf.10xgenomics.com, which returns 403 to non-browser clients;
+the file must be fetched manually into `data/pbmc_reference/`.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
