@@ -199,12 +199,23 @@ def main():
                          values="n_donors")
     if {"healthy", "inflamed"}.issubset(wide.columns):
         delta = (wide["inflamed"] - wide["healthy"]).rename("delta_infl_minus_healthy")
-        ok = (nd.get("healthy", 0) >= 2) & (nd.get("inflamed", 0) >= 2)
-        contrast = pd.concat([wide, delta], axis=1)[ok].reset_index()
+        nd = nd.reindex(wide.index).fillna(0)
+        # A Wnt gene can pass memento's expression filter in one state and not
+        # the other. Contrasting those is comparing a correlation against a
+        # missing one, so require BOTH arms present with >=2 donors; genes
+        # dropped asymmetrically are reported separately, not silently.
+        both = wide["healthy"].notna() & wide["inflamed"].notna()
+        ok = both & (nd["healthy"] >= 2) & (nd["inflamed"] >= 2)
+        contrast = pd.concat([wide, delta, nd.add_prefix("n_donors_")],
+                             axis=1).loc[ok].reset_index()
         contrast.sort_values("delta_infl_minus_healthy").to_csv(
             out / "wnt_state_contrast.csv", index=False)
+        asym = pd.concat([wide, nd.add_prefix("n_donors_")], axis=1).loc[~both].reset_index()
+        asym.to_csv(out / "wnt_state_asymmetric.csv", index=False)
         print(f"\n{len(contrast)} cell_type x Wnt-gene contrasts with >=2 donors "
               f"in both arms -> {out/'wnt_state_contrast.csv'}")
+        print(f"{len(asym)} pairs present in only one state (filter-asymmetric) "
+              f"-> {out/'wnt_state_asymmetric.csv'}")
     else:
         print("\nOnly one state present — no contrast written. "
               "The healthy arm alone cannot address the injury-conditional "
