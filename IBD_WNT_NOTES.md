@@ -241,6 +241,111 @@ saturation, and SCP259 has an immune compartment to gate. It needs the pbmc8k
 reference from cf.10xgenomics.com, which returns 403 to non-browser clients;
 the file must be fetched manually into `data/pbmc_reference/`.
 
+## Empirical q — measured, and it goes the wrong way
+
+`pbmc_scaled_capture_rate` run against pbmc8k (user-supplied; 8,381 cells,
+median 4,084 UMI). Gated T/B/NK/Mono-Mac identically in both datasets. Gate
+ratios are tight — B 0.55, Mono/Mac 0.55, NK 0.39, T 0.46 — so the four
+populations agree that SCP259 immune cells sit at ~half pbmc8k's depth.
+
+**Global empirical q = 0.035**, against a house default of 0.10. Per sample
+(48 libraries) q spans 0.014-0.049, median 0.0325.
+
+This **contradicts the hypothesis that a better q removes pegging**. The
+empirical q is ~3x *smaller* than the default, and re-running with per-cell q
+makes every diagnostic worse:
+
+| cluster | | pegged | no estimate | median \|r\| |
+|---|---|---|---|---|
+| Cycling TA | q=0.10 | 8.0% | 6.3% | 0.212 |
+| | empirical | **16.1%** | **24.0%** | 0.321 |
+| TA 2 | q=0.10 | 5.9% | 10.8% | 0.190 |
+| | empirical | **9.1%** | **28.6%** | 0.280 |
+| Immature Ent. 2 | q=0.10 | 10.2% | 3.5% | 0.299 |
+| | empirical | **18.8%** | **18.3%** | 0.436 |
+
+To eliminate pegging you would need q >= 0.3 (from the sweep), which is ~10x
+the empirical estimate. So pegging here is not a fixable q-misspecification —
+it is thin data. Both explanations were on the table; the measurement settles
+it against q.
+
+The contrast is nonetheless stable under the change: Spearman rho vs q=0.1 is
+0.725 (Cycling TA, p=0.005) and 0.678 (TA 2, p=0.015); Immature Enterocytes 2
+is unstable (rho 0.429, p=0.34) but has only 7 surviving partners.
+
+**Two assumptions this rests on.** (1) Gut immune cells are assumed to carry
+the same absolute mRNA content as blood immune cells. If tissue-resident
+lymphocytes are RNA-*poorer* than circulating ones, part of the 0.5 depth ratio
+is biology and the true q is higher than 0.035 — this is the one route by which
+the q hypothesis could still be partly right. (2) q is derived from the sorted
+immune fraction and applied to epithelial cells from a different library of the
+same biopsy; per-sample depth does track across the two fractions
+(Spearman rho=+0.576, p=1.8e-05, n=48), but imperfectly.
+
+**Not a state confound.** q does not differ across clinical states
+(Kruskal-Wallis p=0.548; paired inflamed vs non-inflamed median difference
+-0.0031, Wilcoxon p=0.099).
+
+## Simpson structure: the between-cell-type gradient reverses the sign
+
+Premise from ANALYSIS_SUMMARY Task 4.2/4.3: ANTXR2 is *villus*-enriched
+(de_coef -0.6164, higher in differentiated enterocyte), while the Wnt-activity
+readouts are strongly *crypt*-enriched (LGR5 +3.94, AXIN2 +2.43, ZNRF3 +2.43,
+RNF43 +1.04, FZD3 +1.74, FZD6 +0.89). The remaining partners — LRP5 -0.58,
+TCF7L2 -0.38, FZD7 -0.25, CTNNB1 -0.13, FZD5 -0.11, FZD1 -0.04 — share
+ANTXR2's villus direction.
+
+Ran the correlation two ways on all epithelium: **pooled** (one group per donor
+x state, cell types mixed) and **within** (donor x state x cluster, 15
+clusters), both at q=0.1.
+
+The between-cell-type contribution (pooled - within) tracks the gradient, as
+predicted, and most cleanly in healthy tissue:
+
+| state | Spearman rho vs de_coef | p |
+|---|---|---|
+| Healthy | **-0.661** | 0.038 |
+| Non-inflamed | -0.491 | 0.150 |
+| Inflamed | -0.297 | 0.405 |
+
+Pooled correlation split by gradient class (healthy / non-inflamed / inflamed):
+crypt-enriched -0.001 / -0.042 / +0.023, villus-enriched +0.158 / +0.252 /
++0.347. **So the predicted anticorrelation appears specifically in the
+crypt-enriched partners** — the ones indexing Wnt output — and it is weak
+(~-0.05), not the strong negative the mean gradient might suggest.
+
+### Within cell type: sign is set by partner class, not uniformly positive
+
+Median within-cell-type r, cluster x partner units, well-powered clusters:
+
+| class | healthy | non-inflamed | inflamed |
+|---|---|---|---|
+| villus-enriched | +0.028 (p=0.35) | **+0.128** (p<1e-4) | **+0.126** (p=0.0005) |
+| crypt-enriched | -0.006 (p=0.26) | -0.085 (p=0.016) | -0.064 (p=0.040) |
+
+So the answer to "does it go positive within a cell type" is **only for the
+villus-class partners**. Crypt-class partners stay weakly negative even within
+a cell type — removing the differentiation gradient does not flip them.
+
+### State dependence: healthy vs diseased, NOT inflamed vs uninvolved
+
+Villus-class within-cell-type correlation is indistinguishable from zero in
+healthy tissue and significantly positive in both diseased states
+(Healthy vs Non-inflamed MW p=0.0031; vs Inflamed p=0.0116). Crypt-class shows
+no significant healthy-to-disease shift (p=0.13, p=0.11).
+
+The inflamed vs non-inflamed contrast is null for both classes (villus median
+delta -0.039, Wilcoxon p=0.53; crypt -0.045, p=0.44; between-class MW p=0.92) —
+consistent with the earlier null on this arm.
+
+**Load-bearing caveat.** The healthy and diseased cohorts are **disjoint
+donors** (12 vs 18, zero overlap), so the healthy-to-disease shift is a
+between-cohort comparison carrying all the usual batch confounding, and this
+dataset uses two chemistries assigned per sample. Per-sample q does not differ
+by state, which rules out gross depth imbalance as the driver, but not
+chemistry imbalance — that needs Table S1. **This is exploratory and should not
+be reported as an inflammation effect without a paired-cohort replication.**
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
