@@ -657,6 +657,60 @@ measurement, report SCP259 as **q in [0.05, 0.25], point estimate 0.15 under
 q_ref=0.30**, and keep using 0.10 for analysis since results are invariant
 across the range.
 
+## What the corrected q does to every number above
+
+The whole downstream panel and the 30 matched anchors were re-run at q=0.15
+(`dsn_eff_q015.csv`, `dsn_anch_q015.csv`) and compared group-by-group against
+the q=0.10 tables. **Magnitudes move; qualities do not.**
+
+`r(0.15) = 0.76 x r(0.10) + 0.012` across 12,922 paired group estimates, with
+**51 sign flips (0.4%)**, all on estimates near zero. So the correction is close
+to a uniform shrink toward zero of ~20-25%, not a re-ordering.
+
+| contrast | n donors | eff r @0.10 | @0.15 | anchor @0.10 | @0.15 | p @0.10 | p @0.15 |
+|---|---|---|---|---|---|---|---|
+| crypt Healthy | 6 | -0.022 | -0.021 | -0.000 | -0.002 | 0.818 | 0.937 |
+| crypt Non-inflamed | 12 | +0.059 | +0.048 | +0.021 | +0.020 | 0.371 | 0.436 |
+| crypt Inflamed | 14 | -0.090 | -0.078 | +0.009 | +0.008 | 0.124 | 0.135 |
+| paired I−NI | 10 | -0.027 | -0.066 | — | — | 0.625 | 0.922 |
+| diff Healthy | 12 | -0.108 | -0.080 | -0.052 | -0.045 | **0.019** | **0.061** |
+| diff Non-inflamed | 11 | -0.119 | -0.094 | +0.005 | +0.005 | 0.010 | 0.009 |
+| diff Inflamed | 10 | -0.158 | -0.128 | -0.096 | -0.086 | 0.212 | 0.121 |
+
+Effect sizes shrink 13-26%. Anchors shrink by the same factor, so **every
+effector-vs-anchor contrast is essentially unchanged** -- the comparison is a
+difference between two quantities that both scale with q.
+
+**Nothing that was called is re-called, with one exception.** `diff Healthy`
+crosses 0.05 (0.019 -> 0.061). That is a panel of the already-retracted
+compartment result, so it changes no live conclusion, but it is worth recording
+that the claim was fragile to a factor the analysis never pinned down -- a
+second reason it should not have been reported.
+
+**The detection artifact is not a q artifact.** Median r by ANTXR2 raw-mean
+octile, both q values:
+
+| ANTXR2 >= | 0.002 | 0.015 | 0.030 | 0.044 | 0.071 | 0.105 | 0.150 | 0.236 |
+|---|---|---|---|---|---|---|---|---|
+| q=0.10 | -0.078 | -0.071 | -0.054 | -0.077 | -0.071 | -0.023 | -0.020 | -0.007 |
+| q=0.15 | -0.056 | -0.057 | -0.045 | -0.064 | -0.060 | -0.018 | -0.015 | -0.002 |
+
+The gradient survives at full strength -- a ~3x span from worst- to
+best-detected groups at both q. Raising q shrinks the bias uniformly along with
+everything else; it does not flatten the curve. **The retraction stands and so
+does the per-compartment matching rule.**
+
+The floor sweep is likewise unchanged in shape (`q_effect_floor_sweep.csv`):
+inflamed crypt effectors run -0.071/-0.058/-0.090/-0.051/-0.120/-0.120/-0.252
+at q=0.10 across floors 0-0.25 and -0.055/-0.051/-0.078/-0.046/-0.117/-0.117/
+-0.199 at q=0.15, with the same p=0.03 blip at floor 0.15 (0.034 -> 0.027).
+That blip remains one of seven floors at n=9 and is still not bankable.
+
+**Practical consequence: none for the analysis.** Keep q=0.10. Report effect
+magnitudes with the q they were computed at, and note they scale by roughly
+0.76 if q is revised to 0.15. No conclusion in this document depends on the
+choice.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
