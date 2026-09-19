@@ -894,6 +894,78 @@ and in TA 2 the raw pathway-vs-control difference is zero (+0.0005, p=0.99).
 A clean version of Result 4 requires a second control set matched to the pathway
 panel's detection rather than to ANTXR2's. Not run.
 
+## Paired within-patient state contrast (inflamed vs non-inflamed)
+
+Everything above pools health states. This section re-runs the pathway x output
+panel, ANTXR2 and matched controls as a **within-patient** contrast in UC
+patients only. Healthy donors drop out by construction: with patient dummies in
+the covariate matrix, a donor contributing one state carries no information.
+
+### The cell-count floor was recomputed, not inherited
+
+The project's 250-cell-per-donor-x-cell-type floor was derived at q=0.10. At
+q=0.15 the failure modes roughly halve, so the floor was re-derived from this
+study's own per-donor estimates (54,484 of them, both runs pooled):
+
+| cells/group | pegged (abs(r)>0.99) | no estimate |
+|---|---|---|
+| 50-100 | 9.5% | 14.0% |
+| 100-150 | 4.5% | 9.6% |
+| 150-200 | 3.0% | 5.6% |
+| 200-250 | 2.2% | 2.6% |
+| >=250 | <1.1% | <3.3% |
+
+Cumulatively, a **100-cell floor** gives 1.8% pegged / 4.1% undefined — both
+inside the project's 5% tolerance. 250 would have left 6/3/1 paired patients
+and is not runnable. 100 was used.
+
+### Detection and pairing are anticorrelated across cell types
+
+The cell types with the most paired patients are the ones where ANTXR2 is
+undetectable. TA 1 has 14 paired patients at the 100-cell floor and an ANTXR2
+raw mean of 0.014 (UC cells). The three cell types that clear both the 0.07
+expression floor and >=5 paired patients are Cycling TA (10 patients), TA 2 (7)
+and Immature Enterocytes 2 (5). Goblet, the cell type carrying the sign
+inversion from the pooled analysis, has **zero** paired patients at this floor,
+so the state-dependence of that inversion remains untestable in SCP259.
+
+Controls were rematched inside the UC-only population: ANTXR2 detection is
+higher in UC than pooled across states (e.g. Cycling TA 0.121 vs 0.091), so the
+pooled-matched control set would be mismatched here.
+
+### Result: null, and the controls now calibrate it
+
+Zero of 398 pairs reach FDR<0.05 in any cell type or class; the minimum FDR is
+0.074. ANTXR2 is flat in all three cell types (medians -0.047, -0.004, -0.019;
+no pair below FDR 0.26), replicating the negative already settled for the
+ANTXR2 x Wnt arm by a different route.
+
+Unlike the one-sample test against zero — where the matched controls were *not*
+a null — the controls behave correctly here: raw p<0.05 rates of 6.7%, 3.7% and
+9.5% against a 5% nominal. A state contrast differences out whatever made the
+controls significant against zero.
+
+### A pathway-vs-control difference that did not survive stratification
+
+Pathway pairs looked more negative than matched controls in Cycling TA
+(p=0.039) and TA 2 (p=0.012). This is a detection artifact and is **withdrawn**.
+The controls are matched to ANTXR2's detection, not the panel's, and pathway
+genes occupy a higher-expression range; the state coefficient itself trends
+more negative with expression. Stratifying by gene_1 raw mean, the difference
+is absent in all three strata containing both classes (p=0.60, 0.88, 0.47), and
+the highest stratum — where the pathway median is most negative (-0.044) —
+contains 97 pathway pairs and no controls at all.
+
+ANTXR2 versus its own matched controls, which *is* detection-balanced, shows no
+difference in any cell type (p=0.22, 0.53, 0.76).
+
+### What the null can and cannot exclude
+
+The smallest detectable shift (1.96 x median SE) is 0.16 in Cycling TA, 0.23 in
+TA 2 and 0.31 in Immature Enterocytes 2. This design excludes large
+state-dependent rewiring, not subtle shifts. With 5-10 paired patients that is
+the ceiling; more donors, not more bootstraps, is what would lower it.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
