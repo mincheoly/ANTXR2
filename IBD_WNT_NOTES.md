@@ -581,6 +581,82 @@ contrast is the safe one and it is flat and null at every floor tested
 the wrong lever; this cohort's limit is ANTXR2 detection in crypt, and that is
 a property of the data.
 
+## CORRECTION: the "empirical q = 0.035" was never empirical
+
+`pbmc_scaled_capture_rate` is documented as transferring *a reference dataset's
+q*. It was run with `q_ref = 0.07` -- memento's generic broad-droplet rate --
+not with pbmc8k's own capture rate. `dataset_subsetting.md` states the
+assumption plainly ("we assume the 10x reference sits at memento's nominal
+droplet capture"), so this was inherited from the plan rather than introduced
+in the run, but it makes the output a *relative depth scaling anchored on a
+literature constant*, not a measurement. The name and the "empirical" label in
+the notes above both oversold it.
+
+**What was actually measured** -- median UMI per cell in marker-gated immune
+populations, the identical gate applied to both datasets:
+
+| gate | SCP259 immune | pbmc8k | ratio | n (ours / ref) |
+|---|---|---|---|---|
+| B | 2044 | 3745 | 0.546 | 18853 / 1657 |
+| Mono/Mac | 2556 | 4666 | 0.548 | 18513 / 3130 |
+| NK | 1630 | 4190 | 0.389 | 11831 / 993 |
+| T | 1917 | 4189 | 0.458 | 42762 / 4813 |
+
+**Median ratio 0.502**, tight across gates. Global medians 2136 vs 4084 agree.
+So the measured statement is "SCP259 immune cells yield about half the UMIs of
+cell-type-matched PBMCs" -- which is unremarkable, and consistent with the
+reassuring prior in the plan that a scaling far from 1 would be a red flag. It
+is **not** a claim that we detect 1/6 of transcripts. The 0.035 is
+`0.07 x 0.502`, and every bit of its lowness comes from the 0.07.
+
+`q_SCP259 = q_ref x 0.502`:
+
+| q_ref | 0.07 | 0.10 | 0.15 | 0.20 | **0.30** | 0.45 |
+|---|---|---|---|---|---|---|
+| q_SCP259 | 0.035 | 0.050 | 0.075 | 0.100 | **0.151** | 0.226 |
+
+pbmc8k is 93,552 mean reads/cell on a standard 3' v2 kit -- deep, effectively
+saturated. If its true q is ~0.3, SCP259 sits at **q ~ 0.15, above the house
+default of 0.10, not 3x below it.**
+
+### This reverses the pegging conclusion
+
+The earlier section claiming the empirical q makes the estimator *worse* was an
+artifact of the 0.07 anchor. From the existing sweep:
+
+| q | 0.035 | 0.07 | **0.10 (house)** | **0.15 (corrected)** | 0.30 |
+|---|---|---|---|---|---|
+| % pegged at abs(r)=1 | 13.5 | 11.0 | **8.0** | **4.2** | 0.4 |
+| % undefined | 13.3 | 8.2 | **6.3** | **3.3** | 3.0 |
+
+q=0.15 roughly halves both failure modes relative to the house default. The
+earlier claim that eliminating pegging "would need q>=0.3, ~10x the
+measurement" is wrong twice over: 0.3 is only 2x the corrected estimate, and
+0.15 already captures most of the benefit.
+
+**Downstream conclusions are unaffected.** Per-group estimates at q=0.15 agree
+with q=0.10 at Spearman rho=0.998 (n=536, median abs difference 0.041), and
+rho >= 0.98 across the whole 0.05-0.5 sweep. Nothing in the Wnt or state
+analyses turns on this. What changes is the *reported* q and the claim about
+estimator health.
+
+### Rules this establishes
+
+1. A function that transfers a reference's q must be given **that reference's
+   q**. Passing a generic literature constant makes the result a rescaled
+   assumption wearing an empirical label.
+2. `q_ref` must be recorded in the config next to the reference it belongs to,
+   with its provenance, exactly as `ASSUMED_SATURATION` already is.
+3. Do not quote a derived q without quoting `q_ref` alongside it.
+
+**Open**: pbmc8k's true q is not yet pinned down from a primary source. 0.3 is
+the user's figure and is plausible for a saturated 3' v2 run, but published 10x
+capture-rate estimates span roughly 0.05-0.5 depending on method (spike-in vs
+nuclei-titration vs vendor claim). Until that is settled from a citable
+measurement, report SCP259 as **q in [0.05, 0.25], point estimate 0.15 under
+q_ref=0.30**, and keep using 0.10 for analysis since results are invariant
+across the range.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
