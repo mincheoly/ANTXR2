@@ -808,6 +808,92 @@ healthy, non-inflamed and inflamed are averaged within each cell type. The
 Goblet inversion is present in donors of all three states by inspection but
 was not tested for state dependence.
 
+## ANTXR2 and detection-matched controls inserted into the pathway panel
+
+Same pipeline as the pathway x output run (memento one-sample, all-ones
+treatment, cell-count-weighted, q=0.15), with four extra genes inserted on the
+pathway side: ANTXR2 and three non-Wnt controls. 990 tests, BH within the run.
+Driver: `scripts/antxr2_insert_run.py`.
+
+### Control construction
+
+Controls are matched PER CELL TYPE to ANTXR2's raw mean (+/-20%, relative) and
+detection rate (+/-2 percentage points), drawn at random (seed 0) from pools of
+377-1282 non-Wnt genes. Realized balance is tight: ANTXR2 vs control median raw
+mean agrees within 0.01 in all 8 cell types.
+
+The skill helper `match_anchors_by_compartment` was NOT used at its default
+`tol=0.25`. That tolerance is on an absolute log1p difference, which at a raw
+mean of 0.1 admits genes from 0.000 to 0.43 -- a 400x detection span, including
+genes that are not expressed at all. At low expression log1p is near-linear, so
+an absolute log1p tolerance is not a relative tolerance. For low-abundance
+targets the tolerance must be relative (ratio of means) plus a detection-rate
+constraint.
+
+### Cell types that cannot be tested
+
+ANTXR2 is below the 0.07 raw-mean floor in Immature Goblet (0.039), Immature
+Enterocytes 1 (0.069, borderline), Enterocyte Progenitors (0.023) and TA 1
+(0.011). These are excluded rather than rescued by lowering the floor. 8 cell
+types remain.
+
+### Result 1: ANTXR2 does not behave like a Wnt pathway gene
+
+Median r against the 10-gene output panel, by cell type: Secretory TA -0.024,
+Stem +0.020, Cycling TA +0.089, TA 2 -0.018, Immature Enterocytes 2 +0.091,
+Enterocytes +0.055, Best4+ Enterocytes -0.049, Goblet -0.077.
+
+Against its own detection-matched controls (Mann-Whitney), ANTXR2 is
+indistinguishable in 6 of 8 cell types. The two exceptions both go the wrong way
+for a pathway-gene interpretation: Secretory TA (p=0.014) and Best4+ (p=2e-5),
+in both of which ANTXR2 is LOWER than the matched random genes.
+
+Against the real Wnt pathway genes, ANTXR2 is significantly lower in Secretory
+TA (p=0.0006), Cycling TA (p=0.0029) and Best4+ (p=0.0082), and not
+distinguishable in the other five.
+
+17 of 67 ANTXR2 pairs reach FDR<0.05, but see Result 2 -- that count is not
+evidence of coupling.
+
+### Result 2: the one-sample null against r=0 is not calibrated
+
+28.9% of the 201 detection-matched non-Wnt control pairs are significant against
+zero (median r = +0.062). In Cycling TA, 20 of 30 control pairs are significant
+and all 30 are positive; in Best4+, 11 of 24 with median +0.217.
+
+Therefore "significant vs zero" in this pipeline does NOT mean "coupled to Wnt
+output". The matched controls, not zero, are the null. Every claim of pathway
+specificity from the earlier pathway x output run needs re-reading against this.
+
+### Result 3: the Goblet inversion is NOT Wnt-specific
+
+Reported last turn as a candidate finding. In Goblet the matched non-Wnt
+controls invert exactly as the pathway panel does: pathway median -0.115 vs
+control median -0.116 (p=0.61), controls 87% negative with 5/15 significant and
+all 5 negative. ANTXR2 also inverts (-0.077, 2/5 significant negative).
+Detection is balanced here (pathway 0.115, ANTXR2 0.093, control 0.092), so the
+comparison is fair.
+
+The inversion is real as a property of Goblet cells but it is not a property of
+Wnt genes. It applies to arbitrary genes measured in Goblet at this detection
+level. The Wnt-specific reading is withdrawn.
+
+### Result 4: where the Wnt panel does beat matched controls
+
+Pathway vs control is confounded -- controls were matched to ANTXR2, not to the
+pathway panel, and the two differ in detection (worst case Stem: pathway 0.298
+vs control 0.082). Using the skill's stratified test on gene_1 detection, the
+pathway advantage survives in 3 of the 4 strata that contain both classes
+(p=2.2e-07, 1.9e-03, 0.045) and closes in one (p=0.76). Two strata contain no
+controls at all, so coverage is partial.
+
+Read as: the Wnt panel does carry signal above detection-matched random genes in
+the crypt compartments, but the effect is smaller than the raw medians suggest,
+and in TA 2 the raw pathway-vs-control difference is zero (+0.0005, p=0.99).
+
+A clean version of Result 4 requires a second control set matched to the pathway
+panel's detection rather than to ANTXR2's. Not run.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
