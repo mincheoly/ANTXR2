@@ -519,6 +519,68 @@ ANTXR2 sits at 8-11% detection in the three usable crypt clusters, and no
 donor carries an ANTXR2 variant. A wild-type cohort cannot test a
 loss-of-function model regardless of how well it is measured.
 
+## Should the ANTXR2 floor come down to 0.05? No.
+
+`filter_mean_thresh` is passed through to memento as a *gene* filter and never
+gated ANTXR2 itself -- groups with ANTXR2 raw mean as low as 0.007 are already
+in the results. So the floor can be swept post hoc without re-running anything.
+
+**Lowering to 0.05 buys almost nothing.** Of 660 epithelial donor x cluster
+groups: 297 clear 0.07, 37 more clear 0.05, 326 remain excluded. In the three
+usable crypt clusters that is 79 -> 90 groups, 23 -> 25 donors, and **11 -> 12
+paired non-inflamed/inflamed donors**. No new cluster qualifies -- the same
+Stem / Cycling TA / TA 2. **Zero of TA 1's 47 groups are recruited**; TA 1
+never reaches 0.05 in any donor, so the cluster that most needs rescuing
+cannot be rescued by this.
+
+And the recruits land in the biased band. ANTXR2's *own* detection drives the
+estimate the same way the partner's does -- median r by ANTXR2-detection
+octile: -0.078, -0.071, -0.054, -0.077, -0.071 (ANTXR2 <= 0.089) then -0.023,
+-0.020, -0.007 (>= 0.124). Everything added between 0.05 and 0.07 sits in the
+~-0.07 regime.
+
+### Sweeping the floor upward is more interesting, and is a trap
+
+| ANTXR2 floor | inflamed n | inflamed eff | anchors | p | paired n | paired d | p |
+|---|---|---|---|---|---|---|---|
+| 0.00 | 16 | -0.071 | -0.003 | 0.40 | 14 | -0.028 | 0.28 |
+| 0.05 | 15 | -0.058 | +0.003 | 0.38 | 11 | -0.043 | 0.28 |
+| **0.07** | 14 | -0.090 | +0.009 | 0.12 | 10 | -0.027 | 0.63 |
+| 0.10 | 12 | -0.051 | +0.009 | 0.31 | 9 | -0.043 | 0.50 |
+| 0.15 | 9 | -0.120 | +0.017 | **0.034** | 6 | -0.045 | 0.84 |
+| 0.20 | 7 | -0.120 | +0.017 | 0.10 | 3 | -0.081 | - |
+| 0.25 | 4 | -0.252 | +0.002 | 0.11 | 0 | - | - |
+
+Anchors stay flat (-0.005 to +0.013) at every floor, so the anchor side is
+unbiased here. The inflamed effector estimate deepens as measurement improves,
+which is the signature of a real effect being diluted by noise -- **but do not
+bank it.** p=0.034 is one of seven floors swept, at n=9 donors, and the trend
+is driven by the same donors surviving each cut.
+
+**The real problem: the floor selects the cohorts differentially.** ANTXR2 raw
+mean in usable crypt groups is 0.043 (healthy) vs 0.102 (inflamed) / 0.121
+(non-inflamed). Fraction of crypt groups clearing each floor:
+
+| floor | healthy | inflamed | uninvolved |
+|---|---|---|---|
+| 0.05 | 0.36 | 0.75 | 0.74 |
+| 0.07 | 0.25 | 0.67 | 0.68 |
+| 0.10 | 0.11 | 0.55 | 0.62 |
+| 0.15 | **0.00** | 0.31 | 0.38 |
+
+At 0.15 the healthy arm is empty, which is why healthy drops out of the table
+above. Within-patient the same quantity shows no difference (+0.0056, p=0.85,
+27 up / 22 down), so this is the known disjoint-cohort / chemistry confound,
+not inflammation-induced ANTXR2.
+
+**Decisions.** Keep the floor at 0.07. Never compare healthy to disease at a
+fixed floor without reporting these retention fractions -- the floor is a
+selection step on cohort, not just on quality. The within-patient paired
+contrast is the safe one and it is flat and null at every floor tested
+(-0.027 to -0.081, p >= 0.27 throughout). Lowering the floor to chase power is
+the wrong lever; this cohort's limit is ANTXR2 detection in crypt, and that is
+a property of the data.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
