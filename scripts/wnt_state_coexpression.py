@@ -105,10 +105,18 @@ def group_correlations(adata, target, partners, donor_col, celltype_col,
 
     memento.compute_2d_moments(adata, [(target, g) for g in keep])
 
-    # NB do NOT use get_2d_moments(groupby=...): it averages the per-group
-    # correlations WEIGHTED BY CELL COUNT, which violates this project's
-    # binding donor-equal-weight convention. Take the raw per-group columns
-    # and average them unweighted below.
+    # NB get_2d_moments(groupby=...) averages the per-group correlations
+    # WEIGHTED BY CELL COUNT. This function deliberately does not use it: it
+    # returns the raw per-group columns so the caller chooses the weighting.
+    #
+    # CONVENTION CHANGED 2026-09-19 (user instruction): new work uses memento's
+    # cell-count weighting, not the donor-equal-weight average this function's
+    # historical callers applied downstream. memento implements it in
+    # hypothesis_test._regress_2d -- an all-ones treatment column triggers
+    # np.average(boot_corr, axis=0, weights=Nc_list). Use
+    # wnt_pathway_output.pathway_output_onesample for that path. Results
+    # computed here with unweighted donor averaging are still valid but are the
+    # OLD convention; label them as such when comparing.
     moments, cell_counts = memento.get_2d_moments(adata, groupby=None)
 
     # group columns are 'sg^<donor>^<cell_type>' (create_groups delimiter '^')

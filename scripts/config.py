@@ -451,8 +451,26 @@ COLLECTIONS = {
 # the output README. Override per-assay below if better estimates become available;
 # assay is kept as its own column throughout so re-deriving means with revised q
 # values later doesn't require re-grouping.
-DEFAULT_CAPTURE_RATE = 0.1
+# REVISED 2026-09-19 from 0.1 -> 0.15. The measured quantity is a UMI-depth
+# ratio of 0.502 between SCP259 immune cells and cell-type-matched pbmc8k
+# (capture_rate_gate_ratios.csv). Multiplying by pbmc8k's own capture rate --
+# taken as Q_REF_PBMC8K below rather than memento's generic 0.07 -- gives
+# 0.30 * 0.502 = 0.151. See IBD_WNT_NOTES.md "the 'empirical q = 0.035' was
+# never empirical". Effect of the change is a ~0.76x multiplicative shrink of
+# correlation magnitudes with no sign or verdict changes (q_sensitivity_*.csv).
+DEFAULT_CAPTURE_RATE = 0.15
 CAPTURE_RATE_BY_ASSAY = {}
+
+# ASSUMPTION, not a measurement -- the anchor that DEFAULT_CAPTURE_RATE is
+# derived from, recorded here next to the reference it belongs to. pbmc8k is a
+# saturated 3' v2 run (93,552 mean reads/cell), so memento's generic
+# broad-droplet 0.07 is the wrong anchor for it. 0.30 is the working figure;
+# published 10x capture estimates span ~0.05-0.5 depending on method, and this
+# is not yet pinned to a citable primary measurement. Any q transferred FROM a
+# reference dataset must be given that reference's own q, never a generic
+# constant -- passing 0.07 here is what produced the retracted "empirical
+# q = 0.035".
+Q_REF_PBMC8K = 0.30
 
 # Below this many cells, a donor-chunk read is skipped and its cells fall back to
 # the dataset-level (no-donor) grouping bucket instead of being dropped.

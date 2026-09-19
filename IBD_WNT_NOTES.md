@@ -711,6 +711,103 @@ magnitudes with the q they were computed at, and note they scale by roughly
 0.76 if q is revised to 0.15. No conclusion in this document depends on the
 choice.
 
+## Wnt pathway x Wnt output co-expression, per cell type (q=0.15, count-weighted)
+
+Two project conventions change here, both by explicit instruction:
+
+1. **q is now 0.15 everywhere.** `DEFAULT_CAPTURE_RATE` updated in config with
+   the derivation and its anchor. All numbers below are at q=0.15.
+2. **Donor averaging is now cell-count-weighted, not donor-equal.** This
+   retires the convention the `group_correlations` wrapper was built around.
+
+Both are served by one code path. memento already implements the requested
+one-sample test: in `hypothesis_test._regress_2d`, an all-ones treatment
+column triggers `np.average(boot_corr, axis=0, weights=Nc_list)` -- the
+cell-count-weighted mean of the bootstrap correlations across groups -- with
+the p-value from `_compute_asl` on the bootstrap null. So "one-sample p-value"
+and "average donors by cell count, like memento's code" are the same branch,
+not two things to reconcile. Driver: `scripts/wnt_pathway_output.py`.
+
+Design: pathway side = `GENE_PANEL_ARMS["WNT_ARM"]` (17 present of 18),
+output side = `GENE_PANEL_ARMS["WNT_TARGET_EFFECTOR"]` (10), disjoint by
+construction. 170 possible pairs. Groups = donor-state (`SubjState`) within
+each cell type, so cell type is fixed per run and donors are the only group
+axis. 12 of 15 epithelial cell types cleared a pre-specified floor of >=8
+donors with >=50 cells; Tuft (6), M cells (3), Enteroendocrine (1) dropped.
+num_boot=5000, 820 tests total, BH-FDR across all of them. 341 pairs at
+FDR<0.05.
+
+### The coverage of this heatmap is a sequencing-depth map
+
+Pairs surviving memento's expression filter, against median UMI per cell:
+Spearman **rho=+0.916, p<1e-4**. Cell count is not what drives it -- TA 1 has
+the *most* cells in the dataset (33,671) and the *third fewest* measurable
+pairs (30/170, 3 pathway genes), because its median depth is 948 UMI. Stem has
+2,403 cells and 120/170 pairs at 11,311 UMI. Mean |r| also tracks depth
+(rho=+0.692, p=0.013).
+
+**This heatmap is readable within a cell type and not across cell types.** A
+pale, sparse panel means shallow cells, not absent Wnt coupling. This is the
+same detection confound that forced the compartment retraction above; it is
+not fixed by q=0.15 (see the q-sensitivity section -- the octile bias curve
+survives the change at full strength).
+
+### What the weighting change actually did
+
+Comparing memento's count-weighted bootstrap estimate against the unweighted
+mean of the per-donor point estimates: Pearson r=0.884, median |diff|=0.033,
+mean |r| 0.119 weighted vs 0.134 unweighted. 103/820 pairs change sign, but
+those are noise-level -- median |unweighted r| among flips is 0.025 vs 0.119
+among non-flips, only 2 flips reach FDR<0.05, and exactly **one** flip is
+consequential (Goblet TCF7L2 x CD44, -0.193 weighted vs +0.176 unweighted,
+FDR=0.009). The convention change is defensible and costs almost nothing in
+reinterpretation. Note the two quantities are not a clean weighting contrast:
+`corr_coef` is a weighted average of bootstrap correlations, `unw_mean` an
+unweighted average of point estimates, so shrinkage and bootstrap also
+contribute to the gap.
+
+### Result
+
+Every proliferative/progenitor compartment shows coherent positive
+pathway-output coupling, strongest where depth is highest:
+
+| cell type | sig pos / neg | median r | strongest pair |
+|---|---|---|---|
+| Cycling TA | 115 / 1 | +0.193 | LGR5 x ASCL2, +0.485 |
+| TA 2 | 56 / 9 | +0.108 | FZD5 x CCND2, +0.286 |
+| Secretory TA | 54 / 0 | +0.202 | FZD9 x ASCL2, +0.541 |
+| Stem | 37 / 3 | +0.273 | LGR5 x SMOC2, +0.494 |
+| Best4+ Enterocytes | 14 / 5 | +0.200 | AXIN2 x CCND1, +0.326 |
+| Immature Enterocytes 2 | 14 / 1 | +0.127 | RNF43 x CCND1, +0.240 |
+| TA 1 | 9 / 0 | +0.105 | RNF43 x CD44, +0.271 |
+| **Goblet** | **0 / 17** | **-0.180** | FZD5 x CD44, -0.271 |
+
+**Goblet is the one inversion, and it is not a depth artifact.** All 17 of its
+significant pairs are negative, spanning five different output genes (CCND1,
+CCND2, CD44, OLFM4, SOX9). Checks:
+
+- Not donor-driven: 16/18 donors negative, no relationship between donor cell
+  count and donor mean r (rho=-0.009, p=0.97), largest donor holds 11.3% of
+  cells, and dropping it *strengthens* the effect (-0.123 -> -0.132).
+- Not a weighting artifact: weighted and unweighted donor means agree
+  (-0.123 vs -0.127).
+- Not depth: Immature Goblet sits at comparable depth (3,100 vs 2,652 UMI)
+  with *more* donors (39 vs 18) and does not invert (8/48 pairs negative
+  overall, 2 pos / 1 neg significant).
+
+Mature goblet cells decoupling Wnt output from pathway component expression is
+biologically plausible -- they are post-mitotic and terminally differentiated,
+so Wnt target genes here are being read out under different regulation than in
+the crypt. This is a candidate finding, not an established one: 18 donors, one
+dataset, and no ANTXR2 connection has been tested yet.
+
+### Not assessed
+
+Health state is collapsed in this run -- donors enter as `SubjState`, so
+healthy, non-inflamed and inflamed are averaged within each cell type. The
+Goblet inversion is present in donors of all three states by inspection but
+was not tested for state dependence.
+
 ## Caveats
 
 - **Exploratory.** Positive correlations here have *not* passed
