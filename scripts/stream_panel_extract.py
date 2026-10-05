@@ -32,7 +32,14 @@ def var_names(f, root):
     return read_cat(vg, idx)
 
 
-def extract(path, out_npz, target_nnz=4_000_000):
+OBS_COLS = ["cell_type", "tissue", "tissue_general", "disease", "development_stage",
+            "donor_id", "assay", "suspension_type", "sex", "is_primary_data"]
+
+
+def extract(path, out_npz, target_nnz=4_000_000, panel=None, obs_cols=None):
+    """panel / obs_cols default to the module-level PANEL / OBS_COLS."""
+    panel = PANEL if panel is None else panel
+    obs_cols = OBS_COLS if obs_cols is None else obs_cols
     f = h5py.File(path, "r")
     root = "raw" if "raw" in f and "X" in f["raw"] else ""
     X = f[f"{root}/X"] if root else f["X"]
@@ -46,7 +53,7 @@ def extract(path, out_npz, target_nnz=4_000_000):
     n_cells = len(indptr) - 1
 
     sel = {}
-    for gname in PANEL:
+    for gname in panel:
         hit = np.where(names == gname)[0]
         if len(hit):
             sel[gname] = int(hit[0])
@@ -85,8 +92,7 @@ def extract(path, out_npz, target_nnz=4_000_000):
 
     obs = f[f"{root}/obs"] if (root and "obs" in f[root]) else f["obs"]
     meta = {}
-    for c in ["cell_type", "tissue", "tissue_general", "disease", "development_stage",
-              "donor_id", "assay", "suspension_type", "sex", "is_primary_data"]:
+    for c in obs_cols:
         if c in obs:
             meta[c] = read_cat(obs, c)
     f.close()

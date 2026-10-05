@@ -132,6 +132,13 @@ at a different question.
     not a causal claim (see the item above) -- but no longer merely
     "ungated exploratory GSEA": this is now the project's best-supported
     positive-correlation finding.
+    **AMENDED 2026-10-05: it does not generalize.** Across 25 fibroblast
+    tissues (Tabula Sapiens / oral / synovium / tendon one-sample scans,
+    expression-adjusted ranking) collagen formation is significantly positive
+    in 0 tissues and EMT significantly *negative* in 8, and against matched
+    anchors neither is ANTXR2-specific. Treat the Elmentaite result as
+    specific to that cohort (21 donors; the cross-tissue populations have
+    2-5). See `PATHWAY_LYMPHATIC_NOTES.md` Section 2.
   - **Enterocyte digestion/absorption correlation DOES NOT SURVIVE the
     control, and this reframes that finding.** A MAJORITY of anchors recover
     both "Protein digestion and absorption" (17/20) and "Fat digestion and
@@ -186,6 +193,32 @@ at a different question.
   dataset with a self-describing format (mtx nnz header, a stated cell count,
   etc.): compare the parsed content against that count before trusting the file,
   not just the downloaded byte count against an expected size.
+
+- **memento's +/-1 placeholder correlations are still in the 2026-10 release
+  (fixed upstream in PR #83).** `estimator._corr_from_cov` reports pairs whose
+  group variance is <= 0 as exactly +/-1 (the 2026-09-04 bug above).
+  `ht_2d_moments` skips |r| == 1 groups, so memento's tests are safe, but any
+  code that averages `get_2d_moments` group values itself must drop |r| == 1
+  first. `scripts/coexpr_point_scan.py` did not until 2026-10-04; every scan
+  was re-run and no substantive conclusion changed
+  (`PATHWAY_LYMPHATIC_NOTES.md` Section 5).
+
+- **Endothelial ECM / clearance co-expression is composition, and ANTXR2 is
+  lymphatic-enriched (2026-10-05).** The apparent ANTXR2-specific ECM /
+  scavenger signal in endothelium came from lymphatic cells inside mixed
+  "endothelial cell" labels plus fibroblast / macrophage contamination; it is
+  absent in blood-vessel endothelium. Within endothelium ANTXR2 is 2-15x
+  higher in lymphatic cells (14 tissues, 41/42 donors) but is not a lymphatic
+  marker (AUROC 0.65; fibroblasts and immune cells match it). Lymphatic cells
+  lack MRC2. Details and the gut LEC6 result: `PATHWAY_LYMPHATIC_NOTES.md`
+  Sections 3-4.
+
+- **Scope as of 2026-10-03:** the concrete results are the COL6/ANTXR2 load
+  ranking (`HFS_ATLAS_NOTES.md`) and the means-level intestinal crypt ->
+  differentiated gradient opposite Wnt output (not a general epithelial rule;
+  `PATHWAY_LYMPHATIC_NOTES.md` Section 1). Pathway enrichment is exploratory;
+  co-expression questions are now asked per gene with an explicit specificity
+  control.
 
 ## Designed but never run (authoritative open list)
 
