@@ -420,13 +420,49 @@ Tabula Sapiens: shipped scVI compartment UMAP).
   lower. One LEC6 donor (A26, 11 cells) has median 24% mitochondrial reads; it
   is not one of the three paired DE donors (A32 7.0%, A34 5.6%, A38 3.4%).
 
-### 4.7 Synthesis and hypotheses (none tested)
+### 4.7 Replication attempt: Kong et al. 2023 (CELLxGENE Census)
+
+`scripts/kong_lymphatic.py` -> `kong_lymphatic/`. Kong et al. 2023 (Immunity;
+adult Crohn's and non-IBD controls; terminal ileum and colon; 10x 3' v1-v3),
+stromal datasets, Census release 2025-11-08. Independent of Elmentaite
+(different cohort, lab, chemistry); no subtype labels used.
+
+- **Census label error:** Kong's lymphatic endothelial cells are labelled
+  **"lymphocyte"** in these stromal datasets (4,248 cells: TI 3,787, colon
+  461). Markers: CCL21 85%, TFF3 87%, LYVE1 54%, MMRN1 54%, PROX1 39%, RELN 28%
+  detected; PTPRC 2.1%, CD3E 0.9%, MS4A1 0.4% (endothelial background). The
+  "endothelial cell" label holds essentially no lymphatic cells (PROX1 0.4%,
+  CCL21 2%). `kong_lec_label_markers.csv`.
+- **LEC > BEC replicates:** donor-paired (>= 20 cells each), ANTXR2 higher in
+  LEC in **19/21 donors**; normal ileum 13/14, median +1.84 log2 (~3.6x;
+  CP10K 0.52 vs 0.10), Wilcoxon p = 0.0015; normal colon 2/2 (+2.17); Crohn's
+  ileum 4/5 (+1.32). Unlike Elmentaite LEC6, Kong LEC do not exceed
+  fibroblasts (normal ileum fibroblasts 1.29 CP10K).
+  `kong_lec_vs_bec_by_donor.csv`.
+- **LEC6 state: not testable in Kong (inconclusive, not refuted).** The
+  LEC6-defining genes are barely detected in Kong LEC (CSF3 <= 1.8%, COL6A3
+  <= 4.8%, ADAMTS4 <= 16%, MFAP4 <= 14% in any cluster). Within-donor
+  top-vs-bottom quartile of the LEC6 program score: 2/7 donors higher (valve
+  control 2/7, capillary 4/7) -- only 7 donors have >= 80 LEC, and ANTXR2
+  detection in Kong LEC is 4-14%. Kong LEC clusters are ordered by depth
+  (median 471-4,318 UMI); ANTXR2 detection tracks depth across clusters
+  (Spearman 0.93; PROX1 0.81), so cluster-level differences are depth, not
+  state. `kong_lec_program_quartiles.csv`, `kong_lec_clusters.csv`.
+- **Open caveat on LEC6 itself:** part of its program (CSF3, CXCL1, NFKBIZ,
+  TNFAIP3, MAFF, RGS16) is an NF-kB / immediate-early activation signature,
+  which tissue handling can induce; the immediate-early genes (FOS, JUN) were
+  not systematically higher in LEC6 (4.3), but this has not been ruled out with
+  an independent cohort. A deeper dataset with resolved gut lymphatic states
+  is needed.
+
+### 4.8 Synthesis and hypotheses (none tested)
 
 Supported:
-1. Within endothelium ANTXR2 is lymphatic-enriched (14 tissues, 41/42 donors).
+1. Within endothelium ANTXR2 is lymphatic-enriched (14 tissues, 41/42 donors;
+   replicated in Kong ileum / colon, 19/21 donors).
 2. In gut lymphatics it is a top marker of LEC6, a gut-wall, capillary-type,
    matrix-producing state, and it tracks capillary-LEC identity, also within a
-   subtype.
+   subtype -- **Elmentaite only; not testable in Kong (too shallow).**
 3. LEC lack the clearance co-receptor MRC2 and make little collagen VI; they
    have the Wnt receptors.
 4. Within LEC, ANTXR2's cell-to-cell variation has consistent but modest
@@ -453,7 +489,7 @@ Hypotheses this motivates (all need knockout or functional data):
   beyond structure. **ADM** (negative partner) is a lymphatic regulator via
   CALCRL signalling (*verify* primary source).
 
-### 4.8 Data that would test this
+### 4.9 Data that would test this
 
 - **No Antxr2-knockout transcriptomic or spatial dataset was found.** Bracq et
   al.'s Visium and scRNA-seq panels are re-analyses of **wild-type** data from
@@ -521,6 +557,9 @@ Hypotheses this motivates (all need knockout or functional data):
    scikit-learn). Restored explicitly as `treatment=None` in PR #83; the
    original 100 scans (`antxr2_coexpr.py`) were run on a pre-#69 version and
    remain valid.
+8. **Census label error (Kong 2023 stromal):** lymphatic endothelial cells are
+   labelled "lymphocyte" (Section 4.7); select them by that label plus markers,
+   not by "endothelial cell".
 
 ## 6. Reproducing (outputs under `C:\Data\ANTXR2_workspace`)
 
@@ -548,4 +587,5 @@ target column once per pair; unchunked one-vs-all scans peaked at 12 GB).
 | memento native | `memento_onesample_scan.py <npz> <out> --shrinkage 0.25 --backend gpu` | `lymphatic/memento_onesample/` |
 | gene tables | `lymphatic_gene_table.py`, `lymphatic_gene_test.py` | `lymphatic/antxr2_lymphatic_gene_*.csv` |
 | fix audit | `compare_fixed_scans.py` | `results/fixed_vs_old_rankings.csv` |
+| Kong replication | `kong_lymphatic.py <ws> kong_lymphatic` (Census pull ~1 min; cache regenerable, not kept) | `kong_lymphatic/` |
 | UMAPs | `lymphatic_umaps.py <ws> figures/lymphatic_umap` (~3 min; panel cache regenerable, not kept) | `figures/lymphatic_umap/` |
