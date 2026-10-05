@@ -203,10 +203,11 @@ at a different question.
   was re-run and no substantive conclusion changed
   (`PATHWAY_LYMPHATIC_NOTES.md` Section 5).
 
-- **Endothelial ECM / clearance co-expression is composition, and ANTXR2 is
-  lymphatic-enriched (2026-10-05).** The apparent ANTXR2-specific ECM /
-  scavenger signal in endothelium came from lymphatic cells inside mixed
-  "endothelial cell" labels plus fibroblast / macrophage contamination; it is
+- **Endothelial ECM / clearance co-expression is annotation granularity, and
+  ANTXR2 is lymphatic-enriched (2026-10-05).** The apparent ANTXR2-specific ECM /
+  scavenger signal in endothelium came from lymphatic cells inside generic
+  "endothelial cell" labels (a granularity difference, not contamination) plus
+  fibroblast / macrophage contamination; it is
   absent in blood-vessel endothelium. Within endothelium ANTXR2 is 2-15x
   higher in lymphatic cells (14 tissues, 41/42 donors) but is not a lymphatic
   marker (AUROC 0.65; fibroblasts and immune cells match it). Lymphatic cells

@@ -1,4 +1,4 @@
-# ANTXR2 -- cross-tissue co-expression pathways, endothelial composition, and lymphatic endothelium
+# ANTXR2 -- cross-tissue co-expression pathways, endothelial annotation granularity, and lymphatic endothelium
 
 Companion to `ANALYSIS_SUMMARY.md` (authoritative framing and standing
 corrections), `HFS_ATLAS_NOTES.md` (COL6/ANTXR2 load arm) and
@@ -122,10 +122,11 @@ NES spread in immune/epithelial populations.
 | immune | 33 | 61 (8/53) | translation (-, 16/33), RNA transport (-, 17/33), long-term potentiation (+, 19/33) | ribosome (11/33, FDR 0.21); 20 of the 61 terms are >30% replication-dependent histone genes -- one cycling-cell signal, not 20 findings |
 | epithelial | 16 | 22 (17/5) | weak / mixed | |
 
-The endothelial row is reinterpreted in Section 3: it is lymphatic
-composition plus contamination, not endothelial co-regulation.
+The endothelial row is reinterpreted in Section 3: it reflects annotation
+granularity (lymphatic cells inside generic "endothelial cell" labels) plus
+fibroblast / macrophage contamination, not endothelial co-regulation.
 
-## 3. Endothelial ECM / clearance signal = lymphatic composition + contamination
+## 3. Endothelial ECM / clearance signal = annotation granularity + contamination
 
 Gene-group check (`endothelial_source_check.py`): mean expression-adjusted
 correlation of a gene group with ANTXR2 vs with each of its 5 anchors; cells
@@ -365,7 +366,46 @@ well as in the mixed sources, which amplify it. So ANTXR2 tracks
 capillary-LEC identity both between and, more weakly, within subtypes (gut is
 10 groups). No Wnt-receptor or NF-kB co-expression beyond anchors.
 
-### 4.6 Synthesis and hypotheses (none tested)
+### 4.6 Global view (UMAPs, `scripts/lymphatic_umaps.py`)
+
+Figures in `figures/lymphatic_umap/` (A-F). Embeddings use each atlas's own
+integrated space (gut: shipped `X_pca`, sub-UMAPs recomputed on the subset;
+Tabula Sapiens: shipped scVI compartment UMAP).
+
+- **Why the endothelial signal looked like co-regulation (annotation
+  granularity).** In Tabula Sapiens, spleen, fat, ovary, skin, liver, mammary,
+  prostate and trachea label 100% of their endothelium generically ("endothelial
+  cell") with zero lymphatic-labelled cells, yet each holds tens to hundreds of
+  PROX1+ or CCL21+ cells inside that label (fat 592, ovary 533, skin 285;
+  `B_ts_granularity_by_tissue.csv`; spleen's 1,085 are likely ambient CCL21).
+  On the UMAP the PROX1+CCL21+ lymphatic island contains both labelled-lymphatic
+  and generic-labelled cells, and ANTXR2 is enriched across it.
+- **Other ANTXR2-high endothelium in Tabula Sapiens:** a PROX1+ but CCL21-
+  group (3,998 cells; mostly spleen, fat, heart, muscle; labelled generic)
+  with ANTXR2 detection 36%, equal to labelled LEC (32%) -- probably not
+  lymphatic (no CCL21); identity unresolved (candidates: splenic sinusoidal,
+  venous-valve endothelium). And lung capillary endothelium (8,685 of a
+  10,380-cell cluster) at 21%, consistent with lung having the highest BEC
+  ANTXR2 and the smallest LEC/BEC difference in 4.1. So "ANTXR2-high
+  endothelium" is PROX1+ endothelium broadly, plus lung capillaries.
+- **Gut atlas:** LEC form a separate PROX1-high island next to blood-vessel
+  endothelium; ANTXR2+ LEC concentrate at one edge of it.
+- **Gut LEC subtypes form a continuum, not islands.** Developmental stage
+  dominates one axis (fetal LEC4 / LEC2 vs postnatal); lymph-node LEC1 and the
+  valve markers (ACKR4, CLDN11) sit at one pole, LEC3 (ileal) runs through the
+  middle, LEC6 occupies the opposite pole together with ANTXR2, ADAMTS4,
+  COL6A3, MFAP4, ADGRG3 and a tight CSF3+ patch. MRC2 is detected in 1% of LEC.
+  MKI67+ cycling cells sit in the fetal tip.
+- **LEC6 composition:** postnatal only; gut wall (mostly colon / rectum /
+  cecum / appendix); 443/522 cells 10x 5' v2 (the paired LEC6 DE in 4.3 is
+  within 5' v2, so chemistry is held fixed there).
+- **LEC6 quality metrics** (`F_lec_qc_by_donor_subtype.csv`): genes and UMIs
+  per cell are mid-range (fetal LEC4 is deeper yet ANTXR2-low, so the LEC6
+  ANTXR2 enrichment is not a depth effect); doublet scores are, if anything,
+  lower. One LEC6 donor (A26, 11 cells) has median 24% mitochondrial reads; it
+  is not one of the three paired DE donors (A32 7.0%, A34 5.6%, A38 3.4%).
+
+### 4.7 Synthesis and hypotheses (none tested)
 
 Supported:
 1. Within endothelium ANTXR2 is lymphatic-enriched (14 tissues, 41/42 donors).
@@ -398,7 +438,7 @@ Hypotheses this motivates (all need knockout or functional data):
   beyond structure. **ADM** (negative partner) is a lymphatic regulator via
   CALCRL signalling (*verify* primary source).
 
-### 4.7 Data that would test this
+### 4.8 Data that would test this
 
 - **No Antxr2-knockout transcriptomic or spatial dataset was found.** Bracq et
   al.'s Visium and scRNA-seq panels are re-analyses of **wild-type** data from
@@ -453,9 +493,10 @@ Hypotheses this motivates (all need knockout or functional data):
    gene" is not a meaningful prior. Withdrawn; replaced by per-gene tests
    (4.5a-c).
 4. **Endothelial ECM specificity** (first reported as ANTXR2-specific ECM /
-   clearance co-regulation in endothelium) is lymphatic composition plus
-   fibroblast / macrophage contamination (Section 3).
-5. **Lymphatic "mostly composition"** (stated 2026-10-04 from pre-fix scans)
+   clearance co-regulation in endothelium) reflects annotation granularity
+   (lymphatic cells inside generic endothelial labels; not contamination)
+   plus fibroblast / macrophage contamination (Section 3).
+5. **Lymphatic "mostly subtype mixing"** (stated 2026-10-04 from pre-fix scans)
    is too strong: the capillary / valve association also holds within
    subtype-fixed gut groups (4.5d).
 6. **Donor count**: the lymphatic-vs-blood comparison is 41/42 donors, not
@@ -492,3 +533,4 @@ target column once per pair; unchunked one-vs-all scans peaked at 12 GB).
 | memento native | `memento_onesample_scan.py <npz> <out> --shrinkage 0.25 --backend gpu` | `lymphatic/memento_onesample/` |
 | gene tables | `lymphatic_gene_table.py`, `lymphatic_gene_test.py` | `lymphatic/antxr2_lymphatic_gene_*.csv` |
 | fix audit | `compare_fixed_scans.py` | `results/fixed_vs_old_rankings.csv` |
+| UMAPs | `lymphatic_umaps.py <ws> figures/lymphatic_umap` (~3 min; panel cache regenerable, not kept) | `figures/lymphatic_umap/` |
