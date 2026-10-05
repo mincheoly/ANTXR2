@@ -389,7 +389,22 @@ Tabula Sapiens: shipped scVI compartment UMAP).
   ANTXR2 and the smallest LEC/BEC difference in 4.1. So "ANTXR2-high
   endothelium" is PROX1+ endothelium broadly, plus lung capillaries.
 - **Gut atlas:** LEC form a separate PROX1-high island next to blood-vessel
-  endothelium; ANTXR2+ LEC concentrate at one edge of it.
+  endothelium; ANTXR2+ LEC concentrate at one edge of it. Across the whole
+  atlas ANTXR2 is highest in mesenchymal and neuronal/glial cells, moderate in
+  epithelium and endothelium (figure A, labelled by atlas category).
+- **ANTXR2 in gut blood-vessel EC is structured, not uniform** (figure G;
+  donor pseudobulk, >= 20 cells per donor x subtype,
+  `G_endothelial_subtype_antxr2_summary.csv`). Median CP10K: fetal cycling EC
+  0.16 (10 donors), fetal "Mature venous EC" 0.14 (8), fetal venous capillary
+  0.11 (12), fetal venous / arterial EC 0.08 (10 / 12); postnatal arterial
+  capillary 0.06 (14), mature venous EC 0.03 (11), mature arterial EC 0.008 (8).
+  So the higher-ANTXR2 blood-vessel cells are developing (fetal, cycling)
+  and venous / capillary endothelium; postnatal large arteries are near zero.
+  Stage and segment are partly confounded (venous capillary is fetal-only,
+  arterial capillary postnatal-only in this atlas); within postnatal the order
+  is capillary > venous > arterial. All of these sit well below postnatal LEC6
+  (1.02) and LEC3 (0.38). The same capillary-high pattern appears in Tabula
+  Sapiens (lung capillaries above).
 - **Gut LEC subtypes form a continuum, not islands.** Developmental stage
   dominates one axis (fetal LEC4 / LEC2 vs postnatal); lymph-node LEC1 and the
   valve markers (ACKR4, CLDN11) sit at one pole, LEC3 (ileal) runs through the

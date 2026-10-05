@@ -128,6 +128,25 @@ def feature(ax, xy, v, title):
     clean(ax, f"{title}  ({(~z).mean() * 100:.0f}% >0)")
 
 
+def label_clusters(ax, xy, labels, min_cells=50, size=8):
+    """Direct text labels at each label's median position (identity by text,
+    not colour); white halo keeps them legible over points."""
+    from matplotlib import patheffects as pe
+    span = np.ptp(xy[:, 1])
+    placed = []
+    for lab in sorted(pd.unique(labels), key=lambda l: -np.sum(labels == l)):
+        m = labels == lab
+        if m.sum() < min_cells:
+            continue
+        x, y = np.median(xy[m], axis=0)
+        # nudge down past any label already placed too close (no overlapping text)
+        while any(abs(x - px) < 0.22 * np.ptp(xy[:, 0]) and abs(y - py) < 0.045 * span for px, py in placed):
+            y -= 0.05 * span
+        placed.append((x, y))
+        ax.text(x, y, f"{lab}", fontsize=size, color=INK, ha="center", va="center",
+                path_effects=[pe.withStroke(linewidth=2.5, foreground=SURFACE)])
+
+
 def save(fig, out, name):
     fig.savefig(os.path.join(out, name + ".png"), dpi=200, bbox_inches="tight")
     fig.savefig(os.path.join(out, name + ".svg"), bbox_inches="tight")
@@ -147,12 +166,16 @@ def main(ws, out):
 
     # A: whole gut atlas
     xy = obsm(gut, "X_umap")
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5.4), layout="constrained")
-    categorical(axs[0], xy, [("blood-vessel endothelium", is_endo & ~is_lec, C1),
-                             ("lymphatic endothelium", is_lec, C2)],
-                f"Gut Cell Atlas (Elmentaite 2021), {len(xy):,} cells")
-    feature(axs[1], xy, ge.ANTXR2.values, "ANTXR2")
-    feature(axs[2], xy, ge.PROX1.values, "PROX1")
+    cat = go.category.astype(str).values
+    fig, axs = plt.subplots(1, 4, figsize=(21, 5.6), layout="constrained")
+    axs[0].scatter(*xy.T, s=pt(len(xy)), c=GREY, lw=0, rasterized=True)
+    label_clusters(axs[0], xy, cat, size=10)
+    clean(axs[0], f"Gut Cell Atlas (Elmentaite 2021), {len(xy):,} cells: atlas categories")
+    categorical(axs[1], xy, [("blood-vessel endothelium", is_endo & ~is_lec, C1),
+                             ("lymphatic endothelium", is_lec, C2)], "endothelium")
+    feature(axs[2], xy, ge.ANTXR2.values, "ANTXR2")
+    label_clusters(axs[2], xy, cat, size=8)
+    feature(axs[3], xy, ge.PROX1.values, "PROX1")
     save(fig, out, "A_gut_atlas")
 
     # B: Tabula Sapiens endothelium, annotation granularity
@@ -181,12 +204,61 @@ def main(ws, out):
     pca = obsm(gut, "X_pca")
     e_idx = np.flatnonzero(is_endo)
     exy = sub_umap(pca[e_idx])
-    fig, axs = plt.subplots(1, 4, figsize=(19, 5.4), layout="constrained")
-    categorical(axs[0], exy, [("lymphatic (LEC1-6)", is_lec[e_idx], C2)],
-                f"Gut endothelium, {len(e_idx):,} cells")
-    for ax, g in zip(axs[1:], ["ANTXR2", "PROX1", "PLVAP"]):
+    esub = act.values[e_idx]
+    # LEC subtypes are resolved in figure D; label their island once here
+    elab = np.where(pd.Series(esub).astype(str).str.startswith("LEC").values, "lymphatic (LEC1-6)", esub)
+    fig, axs = plt.subplots(1, 4, figsize=(21, 5.6), layout="constrained")
+    axs[0].scatter(*exy.T, s=pt(len(exy)), c=GREY, lw=0, rasterized=True)
+    label_clusters(axs[0], exy, elab, min_cells=40, size=8)
+    clean(axs[0], f"Gut endothelium, {len(e_idx):,} cells: author subtypes")
+    feature(axs[1], exy, ge.ANTXR2.values[e_idx], "ANTXR2")
+    label_clusters(axs[1], exy, elab, min_cells=40, size=7)
+    for ax, g in zip(axs[2:], ["PROX1", "PLVAP"]):
         feature(ax, exy, ge[g].values[e_idx], g)
     save(fig, out, "C_gut_endothelium")
+
+    # G: ANTXR2 per endothelial subtype, one point per donor (pseudobulk)
+    zc = np.load(os.path.join(cache, "gut_panel.npz"), allow_pickle=False)
+    a2 = zc["counts"][:, list(zc["genes"].astype(str)).index("ANTXR2")][e_idx]
+    lib = zc["total"][e_idx]
+    stage_e = np.where(pd.Series(go.Age_group.values[e_idx]).str.contains("trim"), "fetal", "postnatal")
+    d = pd.DataFrame({"subtype": esub, "stage": stage_e, "donor": go.donor_id.values[e_idx], "a2": a2,
+                      "lib": lib, "pos": a2 > 0})
+    g = d.groupby(["subtype", "stage", "donor"])
+    pbk = pd.DataFrame({"n_cells": g.size(), "antxr2_cp10k": g.a2.sum() / g.lib.sum() * 1e4,
+                        "antxr2_det": g.pos.mean()}).reset_index()
+    pbk = pbk[pbk.n_cells >= 20]
+    summ = (pbk.groupby(["subtype", "stage"]).agg(n_donors=("donor", "size"),
+                                                   median_cp10k=("antxr2_cp10k", "median"),
+                                                   median_det=("antxr2_det", "median"))
+            .reset_index().sort_values("median_cp10k", ascending=False))
+    pbk.to_csv(os.path.join(out, "G_endothelial_subtype_antxr2_by_donor.csv"), index=False)
+    summ.to_csv(os.path.join(out, "G_endothelial_subtype_antxr2_summary.csv"), index=False)
+    order = (pbk.groupby("subtype").antxr2_cp10k.median().sort_values(ascending=False).index.tolist())
+    fig, ax = plt.subplots(figsize=(13, 4.8), layout="constrained")
+    for i, sname in enumerate(order):
+        for st, col in (("postnatal", C2), ("fetal", C1)):
+            dd = pbk[(pbk.subtype == sname) & (pbk.stage == st)]
+            if dd.empty:
+                continue
+            jit = np.random.default_rng(i).uniform(-0.18, 0.18, len(dd))
+            ax.scatter(i + jit, dd.antxr2_cp10k, s=22, c=col, lw=0, label=st)
+        ax.hlines(pbk[pbk.subtype == sname].antxr2_cp10k.median(), i - 0.3, i + 0.3, color=INK, lw=1.5)
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels(order, rotation=35, ha="right", color=INK2)
+    ax.set_ylabel("ANTXR2 CP10K (donor pseudobulk)")
+    for sp in ["top", "right"]:
+        ax.spines[sp].set_visible(False)
+    for sp in ["left", "bottom"]:
+        ax.spines[sp].set_color(GREY)
+    ax.tick_params(colors=INK2)
+    h, l = ax.get_legend_handles_labels()
+    keep = dict(zip(l, h))
+    ax.legend(keep.values(), keep.keys(), frameon=False, loc="upper right", labelcolor=INK2)
+    ax.set_title("Gut endothelium: ANTXR2 per subtype, one point per donor (>= 20 cells); line = median",
+                 loc="left", color=INK)
+    save(fig, out, "G_endothelial_subtype_antxr2")
+    print(summ.round(3).to_string(index=False))
 
     # D: gut LEC subtypes
     l_idx = np.flatnonzero(is_lec)
