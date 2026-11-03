@@ -108,9 +108,15 @@ extracted cells 9 GB, landscape output 9 GB.
 | `raw/gut_cell_atlas/extended_plus.h5ad` | GCA Extended+ (11.6 GB) | `…/757945c8-a916-431d-aceb-1afbc80a7c55.h5ad` |
 | `raw/ibdverse/ibdverse.h5ad` | IBDverse (32.3 GB) | `…/e3460364-c300-4616-9923-3a0224894998.h5ad` |
 | `annotation/gencode.v44.basic.annotation.gtf.gz` | gene spans | `https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.basic.annotation.gtf.gz` |
-| `genesets/programs_long.csv` | program library | **copy from the old host** (md5 `875a18c2e9107b3e66f947f8456d9832`); regenerating pulls OmniPath's current Hallmark/PROGENy/CollecTRI, which drift |
-| `genesets/raw_cytosig/signature.centroid` | CytoSig (needed only to regenerate the library) | `https://raw.githubusercontent.com/data2intelligence/CytoSig/master/CytoSig/signature.centroid` |
 | `annotation/gene_span.csv` | spans | `gene_span.py` (md5 `178d0e6fe8c5450e24c0c04104af70cf`) |
+
+The program library is in the repo, not the data root:
+`genesets/programs_long.csv` (md5 `875a18c2e9107b3e66f947f8456d9832`) is the
+library every result used, and `genesets/raw_cytosig/signature.centroid` is
+the CytoSig input `program_genesets.py` needs. Regenerating the library
+fetches Hallmark, PROGENy, CollecTRI and MSigDB matrisome live from OmniPath,
+which drift, so rerunning it changes the library; don't, unless that is the
+point.
 
 `program_extract.py` refuses an h5ad whose byte size, `uns["citation"]`
 version or nnz differs from `program_config.SOURCES`.
@@ -119,7 +125,7 @@ version or nnz differs from `program_config.SOURCES`.
 directories are `output/<contrast>_<grouping>[_mat<N>][_covNN]/`.
 
 ```
-py program_genesets.py                         # only if not copying programs_long.csv
+# py program_genesets.py                       # rebuilds genesets/programs_long.csv; see above
 py gene_span.py
 # extraction: one pass per source over its h5ad -> program_coexpr/cells/
 py program_extract.py --source extended        # postnatal SI (discovery)

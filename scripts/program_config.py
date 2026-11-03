@@ -16,7 +16,7 @@ from pathlib import Path
 # Data root; set ANTXR2_ROOT on a host where it lives elsewhere.
 ROOT = Path(os.environ.get("ANTXR2_ROOT", "/data/antxr2"))
 RAW_DIR = ROOT / "raw" / "gut_cell_atlas"
-GENESET_DIR = ROOT / "genesets"
+GENESET_DIR = Path(__file__).resolve().parents[1] / "genesets"   # in the repo: the library is an input
 WORK_DIR = ROOT / "program_coexpr"
 CELLS_DIR = WORK_DIR / "cells"          # extracted fibroblast + enterocyte counts
 OUT_DIR = WORK_DIR / "output"           # csv tables
