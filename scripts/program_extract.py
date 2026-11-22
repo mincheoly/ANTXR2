@@ -30,6 +30,10 @@ not by narrowing the extraction.
               (program_config.LANDSCAPE_POPS by author_cell_type, fine =
               author_cell_type; plus pooled fibroblasts, fine = ontology
               class), one npz per population in LANDSCAPE_CELLS.
+    gca_landscape  GCA Extended+, postnatal small intestine, all studies and
+              disease labels (the slice is applied at scoring), the
+              replication populations (GCA_LANDSCAPE_POPS by level_3_annot),
+              one npz per population in GCA_LANDSCAPE_CELLS.
 
 One superset per source is extracted and slices (age, disease, region) are
 applied at scoring time, so trying a slice never re-streams the h5ad.
@@ -40,7 +44,7 @@ completed download is not evidence of correct content.
 
 Usage:
     python program_extract.py --source {healthy,extended,ibdverse,ibdverse_crypt,
-                                        ibdverse_landscape} [--dry-run]
+                                        ibdverse_landscape,gca_landscape} [--dry-run]
 """
 import argparse
 import os
@@ -53,8 +57,11 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fib_cell_extract as F                       # noqa: E402
 from program_config import (                       # noqa: E402
-    DONOR_COL, FINE_COL, LANDSCAPE_CELLS, LANDSCAPE_FIB, LANDSCAPE_FIB_TYPES, LANDSCAPE_POPS,
-    MIN_GROUP_CELLS, REGION, SLICES, SOURCES, STUDY, cells_npz, pop_slug,
+    DONOR_COL, FINE_COL, GCA_FIB_ALL, GCA_FIB_FETAL, GCA_FIB_LEVEL2, GCA_LANDSCAPE_CELLS,
+    GCA_LANDSCAPE_POPS, IBDVERSE_LANDSCAPE_CELLS,
+    LANDSCAPE_FIB, LANDSCAPE_FIB_TYPES, LANDSCAPE_POPS, MIN_GROUP_CELLS, REGION, SLICES, SOURCES,
+    SKIN_ASSAYS, SKIN_FIB_CLUSTER, SKIN_LANDSCAPE_CELLS,
+    STUDY, cells_npz, pop_slug,
 )
 
 
@@ -120,10 +127,78 @@ def ibdverse_landscape(f):
     return ct, obs.assign(fine=np.where(auth, act, obs.fine.values))
 
 
+def gca_landscape(f):
+    cols = ["study", DONOR_COL, "level_2_annot", FINE_COL, "age_unified", "organ_groups",
+            "organ_unified", "assay", "disease"]
+    o = pd.DataFrame({c: F.rc(f["obs"], c) for c in cols})
+    base = ((o.organ_groups == REGION)
+            & ~o.age_unified.astype(str).str.contains("trimester")).values
+    ct = np.where(base & o[FINE_COL].isin(GCA_LANDSCAPE_POPS).values,
+                  o[FINE_COL].values, "").astype(object)
+    ct[base & (o.level_2_annot == GCA_FIB_LEVEL2).values] = LANDSCAPE_FIB
+    return ct, pd.DataFrame({"donor": o[DONOR_COL], "fine": o[FINE_COL], "study": o.study,
+                             "age": o.age_unified, "region": o.organ_unified,
+                             "assay": o.assay, "disease": o.disease})
+
+
+def gca_fetal_fib(f):
+    """Fetal small-intestine fibroblasts of Extended+ (same file and genes as
+    gca_landscape); main() then writes the postnatal + fetal union."""
+    cols = [DONOR_COL, "level_2_annot", FINE_COL, "age_unified", "organ_groups", "organ_unified",
+            "study", "assay", "disease"]
+    o = pd.DataFrame({c: F.rc(f["obs"], c) for c in cols})
+    fetal = ((o.organ_groups == REGION) & (o.level_2_annot == GCA_FIB_LEVEL2)
+             & o.age_unified.astype(str).str.contains("trimester")).values
+    ct = np.where(fetal, GCA_FIB_FETAL, "").astype(object)
+    return ct, pd.DataFrame({"donor": o[DONOR_COL], "fine": o[FINE_COL], "study": o.study,
+                             "age": o.age_unified, "region": o.organ_unified,
+                             "assay": o.assay, "disease": o.disease})
+
+
+def skin_fib(f):
+    """Human dermal fibroblast atlas: healthy skin, 10x 3' v2 / v3; every cell
+    is a fibroblast. fine = one class (pooled within donor); the author
+    cluster is kept in `cluster` for the by-cluster population."""
+    cols = ["donor_id", "disease", "assay", "tissue", "Author", "Age", "cluster_robust"]
+    o = pd.DataFrame({c: F.rc(f["obs"], c) for c in cols})
+    keep = ((o.disease == "normal") & o.assay.isin(SKIN_ASSAYS)).values
+    ct = np.where(keep, LANDSCAPE_FIB, "").astype(object)
+    return ct, pd.DataFrame({"donor": o.donor_id, "fine": "skin fibroblast", "study": o.Author,
+                             "age": o.Age, "region": o.tissue, "assay": o.assay,
+                             "disease": o.disease, "cluster": o.cluster_robust})
+
+
+def refine_npz(src, out, cell_type, fine_key):
+    """Copy a population npz with `fine` replaced by another stored column."""
+    z = dict(np.load(src, allow_pickle=False))
+    z["fine"] = z[fine_key]
+    z["cell_type"] = np.full(len(z["fine"]), cell_type)
+    np.savez_compressed(out, **z)
+    print(f"wrote {out}: fine = {fine_key}")
+
+
+def merge_npz(paths, out, cell_type):
+    """Row-concatenate per-population npz files written by F.extract."""
+    import scipy.sparse as sp
+    zs = [np.load(p, allow_pickle=False) for p in paths]
+    assert all((z["genes"] == zs[0]["genes"]).all() for z in zs)
+    X = sp.vstack([sp.csr_matrix((z["data"], z["indices"], z["indptr"]), shape=tuple(z["shape"]))
+                   for z in zs]).tocsr()
+    rest = {k: np.concatenate([z[k].astype(str) if z[k].dtype.kind == "U" else z[k] for z in zs])
+            for k in zs[0].files if k not in ("data", "indices", "indptr", "shape", "genes")}
+    rest["cell_type"] = np.full(X.shape[0], cell_type)
+    np.savez(out, data=X.data, indices=X.indices.astype(np.int32), indptr=X.indptr.astype(np.int64),
+             shape=np.array(X.shape, dtype=np.int64), genes=zs[0]["genes"], **rest)
+    print(f"wrote {out}: {X.shape[0]} cells, {X.nnz} nnz")
+
+
 ADAPTERS = {"healthy": gca, "extended": gca, "ibdverse": ibdverse,
-            "ibdverse_crypt": ibdverse_crypt, "ibdverse_landscape": ibdverse_landscape}
+            "ibdverse_crypt": ibdverse_crypt, "ibdverse_landscape": ibdverse_landscape,
+            "gca_landscape": gca_landscape, "gca_fetal_fib": gca_fetal_fib, "skin_fib": skin_fib}
 # sources written as one npz per population instead of one per source
-PER_POPULATION = {"ibdverse_landscape": LANDSCAPE_CELLS}
+PER_POPULATION = {"ibdverse_landscape": IBDVERSE_LANDSCAPE_CELLS,
+                  "gca_landscape": GCA_LANDSCAPE_CELLS, "gca_fetal_fib": GCA_LANDSCAPE_CELLS,
+                  "skin_fib": SKIN_LANDSCAPE_CELLS}
 
 
 def verify(f, version_id):
@@ -165,6 +240,12 @@ def main():
     written = F.extract(str(src["h5ad"]), keep, files, obs_cols, "cells", out_dir=str(out_dir))
     for c, n, nnz, path in written:
         print(f"wrote {path}: {n} cells, {nnz} nnz")
+    if a.source == "skin_fib":
+        refine_npz(out_dir / f"cells_{pop_slug(LANDSCAPE_FIB)}.npz",
+                   out_dir / f"cells_{pop_slug(SKIN_FIB_CLUSTER)}.npz", SKIN_FIB_CLUSTER, "cluster")
+    if a.source == "gca_fetal_fib":
+        merge_npz([out_dir / f"cells_{pop_slug(p)}.npz" for p in (LANDSCAPE_FIB, GCA_FIB_FETAL)],
+                  out_dir / f"cells_{pop_slug(GCA_FIB_ALL)}.npz", GCA_FIB_ALL)
 
 
 if __name__ == "__main__":

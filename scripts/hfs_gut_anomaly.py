@@ -7,13 +7,10 @@ and among the lowest collagen VI, giving it the lowest load-per-receptor of all
 populations. Whatever the intestinal phenotype is, the collagen VI clearance
 account does not explain it.
 
-Panel b asks the follow-up question — where in the gut the receptor actually
-sits — and answers stroma and glia, not epithelium, with every epithelial label
-at the bottom of the ranking. That is in tension with the published mouse work
-placing the Wnt role in epithelium cell-autonomously, and is the observation
-that motivates the inflamed-vs-healthy epithelial arm: the receptor's Wnt
-function is injury-conditional, so a healthy atlas cannot show it by
-construction.
+Panel b is descriptive: ANTXR2 per gut cell type, coloured by compartment.
+ANTXR2 is expressed across compartments, epithelium included; its higher level
+in stroma is expected from its known ECM-recycling role and is not read as a
+gut-specific finding.
 
 Outputs
 -------
@@ -113,8 +110,7 @@ def figure(gut, wc):
     ax[1].set_yticks(yy)
     ax[1].set_yticklabels(Gs.celltype, fontsize=5.4)
     ax[1].set_xlabel("$\\it{ANTXR2}$ (CPM), human intestine")
-    ax[1].set_title("Within gut, the receptor is stromal —\nepithelium is the poorest "
-                    "compartment", loc="left")
+    ax[1].set_title("$\\it{ANTXR2}$ by gut cell type", loc="left")
     ax[1].set_ylim(-0.8, len(Gs) - 0.2)
     panel_letter(ax[1], "b")
 

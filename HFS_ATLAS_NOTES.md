@@ -63,12 +63,15 @@ intestine is second-lowest of all 23 on load (8.5) while carrying high
 (16.2, 125 CPM). Whatever drives the intestinal phenotype, the collagen VI
 clearance account does not explain it.
 
-Within the gut the receptor is **stromal and glial, not epithelial** — every
-epithelial label sits at the bottom of the per-cell-type ranking. This is in
-tension with the mouse work placing the Wnt role in epithelium
-cell-autonomously, and is the direct motivation for the inflamed-vs-healthy
-epithelial arm: if the Wnt function is injury-conditional, a healthy atlas
-cannot show it by construction.
+Within the gut, *ANTXR2* is expressed across compartments, epithelium
+included. Its higher level in stroma is expected from its known role in ECM
+recycling and is not treated as a gut-specific finding; the per-cell-type
+ranking (fig_gut_anomaly panel b) is descriptive, and its compartment
+ordering is platform-dependent (exon-only counts here; in intron-counted
+IBDverse ileum, enterocyte and fibroblast *ANTXR2* are comparable). The mouse
+work places the Wnt role in epithelium, in recovery from injury, which
+motivates the inflamed-vs-healthy epithelial arm: an injury-conditional
+function cannot show in a healthy atlas by construction.
 
 ## Standing corrections
 

@@ -815,3 +815,870 @@ In rough priority order; none started.
    as blank rows; fibroblast gene tables have rho > 1 for sparse genes
    (flag or drop genes whose corrected variance is below a floor).
 
+
+## Proliferation tilt (2026-11-10)
+
+The landscape's clearest lineage-wide signal: ANTXR2 couples less than its
+span-matched anchors to E2F / MYC / DNA repair / G2M (epithelium) and
+mTORC1 / E2F / MYC (lymphocytes), ranks 1–2 of 51. Taken step by step.
+
+### Step 1: mean level (`program_landscape_cycling.py` -> `output/landscape/cycling/quartiles_cycle.csv`, `stem_pair.csv`)
+
+Within population × state, per donor, Q4 vs Q1 of a Tirosh S + G2M score;
+log2 ratio of mean normalised expression for ANTXR2 vs the population's 50
+landscape anchors.
+- **Epithelium: ANTXR2 is lower in the more-cycling cells in all 26
+  cells** (excess < 0 in 26/26; |z| > 1.5 in 11). Not independent tests:
+  states share anchors and populations share donors.
+- The effect scales with how much Q4 actually enriches cycling cells
+  (Spearman of MKI67-detection gain vs excess, all 59 cells: −0.47). Where
+  Q4 is ≥ 10 points richer in MKI67+ cells (17 cells), excess < 0 in all 17,
+  median z −1.7. Largest: OLFM4hi crypt progenitors (Q4 93% MKI67+ vs 12%):
+  ANTXR2 −0.43 log2 while anchors +0.17–0.19; excess −0.6, 91–97% of donors,
+  all three states. Goblet SPINK4hi (−0.3 to −0.4, z −1.8 to −2.4) and
+  MUC2int (−0.4 to −0.8) the same.
+- Within all-cycling "Enterocyte stem MKI67", S/G2M phase barely matters
+  (excess −0.1, z −0.4). Between author types, MKI67 vs LGR5hi stem cells
+  per donor: ANTXR2 −0.6 log2 vs anchors −0.2 to −0.3; excess −0.27 to
+  −0.42 (z −0.8 to −1.4; 78–91% of donors). Same direction, weaker.
+- **Lymphocytes: not this.** Q4 holds 0.3–4% MKI67+ cells, i.e. there are
+  almost no cycling lymphocytes to compare; excess < 0 in 15/27 cells, with
+  CD8 TRM TRGC2 and CD4 memory CXCR6 the exceptions (z −1.1 to −3.1). The
+  lymphocyte tilt (mTORC1 / MYC first) must be a growth / activation axis,
+  not division.
+- Myeloid / fibroblast: no signal (few cycling cells, few donors).
+
+**Reading.** In epithelium the co-expression tilt has a plain mean-level
+counterpart: ANTXR2 is ~25% lower in absolute terms (~35% relative to
+matched genes) in cycling crypt and goblet-lineage cells than in their
+non-cycling neighbours.
+
+### Step 2: does the tilt survive accounting for dividing cells? (`program_landscape_cycle_conditioned.py`)
+
+Landscape prep + score rerun for the 23 epithelial + lymphocyte populations
+with the main weights and bootstrap, two ways; `compare` ->
+`output/landscape/cycle_compare.csv`, `cycle_compare_cells.csv`.
+- **drop** (MKI67-detected cells removed): the tilt is essentially
+  unchanged. Over the 44–47 cells scored in both runs, mean excess z
+  E2F targets −1.17 → −1.10, MYC V1 −1.02 → −0.95, G2M −0.83 → −0.74;
+  epithelial consensus z E2F targets −3.08 → −3.00, MYC V1 −2.24 → −1.99,
+  still rank 1–2 of 51. Decisive case: OLFM4hi crypt progenitors (normal),
+  where dropping MKI67+ cells removes 70% of cells (16,839 → 5,061; 93 → 30
+  donors), E2F targets z −2.03 → −1.99, MYC V1 −2.07 → −2.05.
+- **bins** (donor × within-donor tertile of the S + G2M score; tertiles
+  separate well, top 86% / bottom 16% MKI67+ in OLFM4hi): too costly. At the
+  100-cell group floor only 18 of 53 cells stay filled, and the most
+  proliferative populations (goblet SPINK4hi / MUC2int, LGR5hi stem, 2 of 3
+  OLFM4hi states) drop out. On the 17 cells left, proliferation z shrinks
+  20–50% (G2M most), but the control side shrinks as much (TGF-β3 1.03 →
+  0.80, hypoxia 0.90 → 0.50, ZNF331 0.80 → 0.49): precision loss from
+  thinner groups, not a cycle-specific explanation. OLFM4hi normal keeps
+  E2F targets at −2.1.
+
+**Reading.** Not composition. ANTXR2's negative coupling to E2F / MYC
+programs holds among non-dividing cells, i.e. it tracks a graded
+proliferative / biosynthetic axis, which also fits the lymphocyte tilt
+where almost no cells divide. Caveat: "MKI67 not detected" is not "not
+cycling" (dropout; G1/early S); a covariate-adjusted estimator (partial
+moments on a cell-level cycle score) would close that gap without losing
+donors.
+
+### Step 4 plan: replication in the Gut Cell Atlas (written 2026-11-10, before any GCA landscape expression was read)
+
+- **Data.** GCA Extended+ (`757945c8-…`), postnatal small intestine (all
+  non-trimester ages), `disease == normal`, all studies (Kong2023, Elmentaite
+  2021, Martin2019, others): donors disjoint from IBDverse; labs other than
+  IBDverse's (Kong2023 is Broad). Elmentaite2021 SI enterocytes were read
+  earlier in this pilot for the fibroblast/enterocyte question, never for
+  the proliferation tilt. Crohn's left out: 19 donors carry both labels,
+  which breaks the one-state-per-donor bootstrap.
+- **Populations**, by the landscape's rule on cell counts only (≥ 10 donors
+  with a ≥ 100-cell `level_3_annot` group): epithelial — Enterocyte (67
+  donors), TA (51), Goblet (21), Goblet_progenitor (18), Goblet_cycling (13),
+  Paneth (12), Epithelial_stem (12); lymphocyte — Trm_CD8 (22), Trm_CD4 (18),
+  Trm_Th17 (17), B_plasma_IgA1 (17), B_memory (13), B_naive (13).
+- **Method fixed from IBDverse:** the IBDverse landscape's weights.csv
+  (no re-fitting), its core and coverage rules, floors, span-matched
+  population and lineage anchors, donor bootstrap — `ANTXR2_LANDSCAPE=gca`
+  runs the same scripts on this atlas.
+- **Primary tests (epithelium):**
+  - P1: lineage consensus z < 0 with ANTXR2 in the bottom 5 of 51 (vs the 50
+    lineage anchors) for hallmark E2F_TARGETS and for hallmark
+    MYC_TARGETS_V1.
+  - P2: mean consensus z over the IBDverse epithelial set (consensus rank
+    ≤ 2 there: collectri E2F2, E2F3, E2F4; hallmark E2F_TARGETS,
+    MYC_TARGETS_V1, DNA_REPAIR, G2M_CHECKPOINT) below that of 10,000
+    random same-size sets of programs scored in GCA, one-sided p < 0.05.
+  - P3 (mean level, step 1): in cells whose top cycle-score quartile is
+    ≥ 10 points richer in MKI67+ cells, ANTXR2 excess < 0 in most; sign test.
+- **Secondary:** lymphocyte P1 (MTORC1_SIGNALING, MYC_TARGETS_V1) and P2
+  (IBDverse lymphocyte rank ≤ 3: MTORC1, E2F_TARGETS, MYC_TARGETS_V1/V2);
+  the positive side (CytoSig TGFB3, PROGENy Hypoxia, CollecTRI ZNF331)
+  consensus z > 0; per-cell tables.
+- **Verdict:** replicated if P1 (both programs) and P2 pass; partial if the
+  direction holds (both P1 consensus z < 0 and P2 mean z < 0) without the
+  thresholds, or only one P1 program passes; not replicated otherwise. P3 is
+  reported beside it.
+- *Clarification (same day, still before any GCA expression was read):*
+  the P2 sets are the named lists above. The rank rule as worded also
+  catches CollecTRI SFPQ, PRDM1, ZNF143 (epithelium) and NFYA, CREBBP
+  (lymphocytes); they are not in the sets, which are the proliferation /
+  growth programs the tilt was described by.
+
+### Step 3: the growth axis (`program_landscape_cycling.py --axis growth [--no-mki67]`)
+
+Same mean-level design, quartiles of a growth score (hallmark MTORC1 + MYC V1
+genes minus the cycle genes; 367 genes) -> `cycling/quartiles_growth*.csv`.
+- **Lymphocytes: the tilt is a growth axis.** ANTXR2 is lower than its
+  anchors in the high-growth quartile in 19/27 lymphocyte cells, 12 with
+  z < −1.5, median z −1.17 (cycle axis: −0.07). Strongest in naive B
+  (ANTXR2 −0.7 to −1.1 log2 vs anchors ~+0.05; z −2.2 to −3.3; 90–100% of
+  donors), memory B PTPRJ (z −2.2 to −3.6), CD4 memory CXCR6 (z −2.1 to
+  −3.8), CD8 TRM TRGC2, tissue Treg (z −3.0). Plasma cells are the exception
+  (excess +0.1 to +0.3; every gene rises with their growth score).
+- Epithelium: 24/26 negative, median z −1.56 (cycle axis −1.29).
+- **Among non-dividing cells (MKI67-negative only):** epithelium 20/23
+  negative, median z −1.08 (OLFM4hi progenitors −1.2 to −2.3, SPINK4hi
+  goblet −1.3 to −2.2); lymphocytes 19/27, median z −0.91, B cells
+  unchanged (naive B −2.2 to −3.3). The growth coupling is not division.
+
+**Reading.** Across epithelium and lymphocytes ANTXR2 is lower, at the mean
+level, in the cells with the most growth / biosynthesis (mTORC1, MYC)
+activity, dividing or not — the mean-level counterpart of the landscape's
+negative coupling to MYC / mTORC1 / E2F programs.
+
+### Step 4 result: GCA replication (2026-11-10)
+
+`ANTXR2_LANDSCAPE=gca` landscape (13 populations, 83 normal donors; scorer
+matches memento to 6e-15) + `program_landscape_replicate.py` ->
+`output/landscape_gca/replication.json`.
+- **Pre-registered tests: untestable, not failed.** ANTXR2 clears the raw-mean
+  floor in only 5 of 13 cells (enterocyte 0.08, goblet 0.11, goblet
+  progenitor 0.07, B memory 0.14, B naive 0.10; IBDverse enterocytes ~2.2),
+  and those score 20–46 programs. The floor is the house 0.07, the same one
+  the original GCA fib-vs-enterocyte pilot used. Epithelial consensus needs a
+  program scored in all 3 filled cells and holds only 5, none named;
+  lymphocytes have 2 filled cells (no consensus). P3 has no qualifying cell
+  (TA 0.051, stem 0.058, cycling goblet 0.067: just below the floor).
+  *Correction (same day):* named programs were scored per cell, just not in
+  every cell of a lineage: MYC_TARGETS_V1 in enterocyte (excess z −0.34),
+  goblet progenitor (−0.90) and B naive (−1.26); B memory MTORC1 −0.22,
+  DNA_REPAIR −0.02, MYC_V1 +0.22, MYC_V2 +0.08. Weak and mostly negative;
+  IBDverse top-villus enterocytes are similarly weak (MYC_V1 −0.43), the
+  strong cells there being crypt progenitors, whose GCA counterparts sit
+  below the floor.
+- **Why ANTXR2 is ~25× lower: IBDverse counts intronic reads, this GCA
+  release does not.** Gene-by-gene IBDverse / GCA mean ratio vs genomic span,
+  ~9,800 genes: Spearman 0.74 (enterocytes) and 0.70 (memory B); genes of
+  ANTXR2's length (log10 span 5.3–5.6) are ~4× (log2 +2.0) higher in
+  IBDverse relative to the median gene, short genes (< 3 kb) ~2.5× lower.
+  ANTXR2 sits on that line (+1.9 / +2.2). This is the same gene-length axis
+  found inside IBDverse ("Correction"): most of ANTXR2's IBDverse signal is
+  pre-mRNA. The span-matched anchors make the IBDverse comparisons fair, but
+  an exon-only atlas measures a much sparser ANTXR2.
+- **Exploratory (not pre-registered), mean level with anchors matched per
+  cell (`--all-pops`), cycle axis:** TA cells (51 donors; Q4 72% MKI67+ vs
+  4%): ANTXR2 −0.21 log2 while anchors +0.75; excess −0.96, z −1.5, 2nd
+  percentile of anchors, 71% of donors — the counterpart of IBDverse's OLFM4hi
+  progenitors (excess −0.6, 2nd percentile). Not seen in cycling goblet cells
+  (13 donors; excess +0.04) or stem cells (12 donors; Q4 only 6% MKI67+).
+  Growth axis: goblet cycling −1.12 (z −1.6), B memory −1.44 (z −2.3), but
+  B naive +1.38 (z +1.8) and the rest near 0. Anchor SDs are 2–5× IBDverse's
+  (ANTXR2 raw mean 0.02–0.14), so most cells cannot resolve the IBDverse
+  effect size.
+
+**Reading.** Partial at best: the single best-powered GCA test of the core
+finding (TA cells, exon-only counts) agrees in direction and anchor
+percentile; everything else is too sparse to say, and the lymphocyte growth
+result does not reproduce. A fair replication needs an independent gut
+dataset counted with introns (single-nucleus, or Cell Ranger ≥ 7 /
+include-introns), where ANTXR2 is measured the way IBDverse measures it.
+
+## Cross-dataset replication (2026-11-10)
+
+Goal (user): co-expression and mean results that hold in both gut datasets,
+which differ in platform (IBDverse: ileal biopsies, intron-counted; GCA
+Extended+: postnatal small intestine, exon-only). One analysis at a time,
+each run in both: (1) the mean result, ANTXR2 rising with differentiation;
+(2) co-expression modules in fibroblasts; (3) co-expression modules in
+epithelium. Framing: gut only; no "stromal, not epithelial" claim.
+
+### 1. Mean level: ANTXR2 vs epithelial differentiation
+
+`program_landscape_differentiation.py` (both atlases) ->
+`output/landscape{,_gca}/differentiation/{ladder,within}.csv`. ANTXR2 against
+50 span-matched genes matched on raw mean + detection (candidates >= 0.01).
+Ladder: each population vs the stem population (IBDverse LGR5hi stem; GCA
+Epithelial_stem), per donor with >= 100 cells of both, anchors matched in the
+stem population only. Within: top vs bottom quartile of the fixed maturation
+score inside a population.
+
+| ladder vs stem | IBDverse (3 states) | GCA |
+|---|---|---|
+| dividing (stem MKI67, OLFM4hi progenitor / TA) | excess −0.80 to −0.96 log2, z −2.3 to −3.0, 0–2nd pct, 0% of donors above (9–42 donors) | TA: −0.62, z −1.0, 12th pct, 27% of 11 donors |
+| differentiated absorptive (OLFM4lo precursor, top villus / Enterocyte) | ANTXR2 +0.51 to +0.77 while anchors −0.77 to +0.08; excess +0.63 to +1.53, z 0.8–1.5, 82–96th pct, 100% of donors (12–45) | ANTXR2 +0.43, anchors −0.53; excess +0.95, z 0.7, 82nd pct, 91% of 11 donors |
+| goblet | ANTXR2 +0.9 to +1.6 but anchors +0.0 to +0.9; excess +0.17 to +1.17, 64–84th pct, 78–100% of donors | 3–6 donors per population; excess −0.4 to +0.2 (no power) |
+
+Within population (maturation quartiles): IBDverse positive in every crypt
+and precursor population (excess +0.14 to +0.82, 84–98th pct), flat in top
+villus (already mature; 24–70th pct). GCA: TA +0.62 (88th pct, 51 donors),
+Enterocyte +0.50 (z 1.4, 92nd pct, 82% of 66 donors); GCA stem −0.97 (8th
+pct, 12 donors) disagrees.
+
+**Reading.** Replicates in the absorptive lineage in both datasets, in
+direction, donor consistency and anchor percentile, on both tests: ANTXR2
+dips in dividing progenitors and rises in differentiated enterocytes more
+than ~80–95% of matched genes. It is not an extreme outlier (no z > 2 on the
+rising side): about 1 matched gene in 10 rises as much. Goblet: IBDverse
+only, and weaker once anchors are subtracted. Note: `stem_pair` in the
+cycling script matched anchors in both populations, which biases its excess
+toward 0; this script matches in the base population only.
+
+### 2. Fibroblast co-expression: plan (written before any GCA fibroblast correlation was read)
+
+Discovery = IBDverse pooled ileal fibroblasts (landscape, 3 states,
+`report/consensus_fibroblast.csv`, 381 programs): the interferon lean.
+Replication = GCA Extended+ postnatal small-intestine fibroblasts
+(`level_2_annot == Fibroblast`, all studies, `disease == normal`; known so
+far only from obs: 13 Elmentaite2021 normal donors + a few others, subtypes
+ADAMDEC1 / PI16 / F3). Same pipeline as IBDverse fibroblasts: donor ×
+subtype groups with >= 20 cells, >= 10 donors, ANTXR2 raw mean >= 0.07, 50
+span-matched anchors, IBDverse PC1 weights (not re-fitted).
+
+One deviation, fixed now: a program is scored in GCA where >= 50% of its
+IBDverse core genes clear the floor (>= 10 genes), not 80% — the exon-only
+atlas is shallower and at 80% only 20–46 programs scored per cell in step 4.
+Output `landscape_gca_cov50/` (`ANTXR2_CELL_COVERAGE=0.5`); the 80% subset is
+reported as a sensitivity check.
+
+- **F1 (primary), the IFN set** named on 2026-11-03: collectri:IRF1,
+  cytosig:IFN1, cytosig:IFNG, hallmark:INTERFERON_GAMMA_RESPONSE,
+  hallmark:INTERFERON_ALPHA_RESPONSE, collectri:STAT1. (a) mean GCA excess z
+  vs 10,000 random same-size sets of GCA-scored library programs, one-sided
+  greater; (b) same-gene null: ANTXR2's mean ρ over the set ranked among its
+  50 anchors' (percentile >= 90 to pass). Untestable if < 3 of 6 are scored.
+- **F2, whole profile:** Spearman of excess z, IBDverse fibroblast consensus
+  mean z vs GCA fibroblast, programs scored in both (descriptive p; programs
+  overlap).
+- **F3, other IBDverse extremes** (rank >= 50 of 51, not in the IFN set):
+  cytosig:IL27, matrisome:NABA_ECM_REGULATORS, cytosig:FGF2,
+  collectri:ZNF91, collectri:FOXO4 — sign and z each. No negative-side set:
+  the lowest IBDverse fibroblast program is rank 3.
+- Verdict: replicated if F1a p < 0.05 and F1b passes; partial if one does.
+
+### 2. Fibroblast co-expression: result (2026-11-10)
+
+GCA extraction now includes pooled fibroblasts (`gca_landscape` adapter);
+`ANTXR2_LANDSCAPE=gca ANTXR2_CELL_COVERAGE=0.5 program_landscape.py all
+--pops fibroblast_pooled --validate` -> `output/landscape_gca_cov50/`;
+`program_landscape_replicate_fib.py` -> `replication_fibroblast.{json,csv}`.
+GCA fibroblast cell: 4,225 cells in 40 donor × subtype groups, 24 normal
+donors, ANTXR2 raw mean 0.31 (24% detected), reliability 0.16; 6,244 floor
+genes; 380 programs scored (62 at >= 80% coverage); matches memento to 8e-15.
+
+- **F1 (IFN set): partial.** All 6 scored (coverage 0.70–0.80). Excess z:
+  IFNG +1.00, hallmark IFN-γ +0.99, IRF1 +0.69, IFN1 +0.33, hallmark IFN-α
+  +0.32, STAT1 −0.11 (IBDverse consensus z 2.4–3.0). (a) mean z +0.54 vs
+  random 6-program sets: p = 0.022, passes. (b) ANTXR2's set ρ 0.168 vs
+  anchors' 0.112: 80th percentile of its 50 anchors, below the 90 required.
+- **F2 (whole profile): weak.** Spearman 0.12 over 352 shared programs
+  (p = 0.02); 0.14 on the 62 programs at >= 80% coverage.
+- **F3:** IL27 +1.05, NABA_ECM_REGULATORS +1.08, FGF2 +0.06, ZNF91 −0.59,
+  FOXO4 −1.09: 3 of 5 same sign, none beyond z 1.1.
+- GCA's own extremes (fatty-acid metabolism / peroxisome +3.4, SOX9 regulon
+  −4.9) are near 0 in IBDverse.
+
+**Reading.** Same direction, a third of the size: the IFN lean is positive in
+5 of 6 programs in an independent, exon-only atlas and beats random program
+sets, but 1 in 5 matched genes couples to IFN programs as much. By the
+pre-set rule this is partial. ANTXR2's fibroblast program profile as a whole
+barely carries over (0.12), in line with the earlier postnatal-vs-fetal GCA
+comparison (0.14) and with the IBDverse finding that ANTXR2's profile is no
+more structured than a matched gene's.
+
+## Reference-scaled coupling (2026-11-10)
+
+Design change (user): shared weights should be learnable for programs some
+cell types do not express, and the coupling there should read ~0 instead of
+blank. Also: report an activity number beside every coupling, use 200
+matched genes, and defer a real testing strategy.
+
+`program_landscape_ref.py`, `ANTXR2_LANDSCAPE_RUN=ref` ->
+`output/landscape_ref/` and `output/landscape_gca_ref/` (`coupling.csv`).
+- **Weights:** a gene enters a program if it clears the floor in >= 3 filled
+  IBDverse cells (was: half of all cells); PC1 of the correlation averaged
+  over the cells where each pair is measured. 600 programs (was 437),
+  8,760 genes; collagens, basement membrane, proteoglycans now included.
+- **Scale:** each gene is divided by a reference SD = 90th percentile of its
+  corrected SD (per-10k units) over the cells where it clears the floor,
+  i.e. where it varies most. (A median was tried first and rejected:
+  lineage-high genes dwarfed their reference, activity up to 69.)
+- **Readout:** beta = cov(ANTXR2, score) / (SD ANTXR2 here × program
+  reference SD) = rho × activity_sd; excess = beta − mean of 200 span-matched
+  anchors; pct = share of anchors below ANTXR2. Reported with
+  `activity_mean` (mean per-10k expression of the program's genes),
+  `activity_sd` (program SD here / reference) and `frac_pass`.
+- **GCA:** IBDverse weights, GCA's own reference SDs, ANTXR2 floor 0.05
+  (exploratory): 12 of 14 cells filled (all epithelium incl. TA, stem,
+  Paneth; Trm CD4/Th17; B memory/naive; fibroblasts), 600 programs each.
+- No bootstrap yet. z and pct are noise where a program is silent (both
+  ANTXR2 and anchors ~0); read excess, or filter on activity_sd.
+- 200 anchors is a looser match: e.g. IBDverse fibroblasts raw mean 0.9–4.6
+  around ANTXR2's 1.6.
+
+Checks (IBDverse, 437 old programs × 58 cells): new vs old per cell,
+rho r = 0.80, excess r = 0.70 (median). Collagens: activity_sd 0.01–0.06 and
+beta 0.00 in every non-fibroblast population, 1.18 in fibroblasts. E2F
+targets: activity_sd 0.7–1.0 in dividing epithelium with ANTXR2 at the
+2nd–5th percentile, as before.
+
+### 2b. Fibroblasts under the new estimator, both datasets
+
+IBDverse = mean over 3 states; GCA = normal. 597 library programs.
+- **Interferon is the only thing shared at the top.** Programs at >= 90th
+  percentile in both datasets (activity_sd >= 0.2 in both; 20 in IBDverse,
+  38 in GCA): IRF2 regulon, CytoSig IFNG, CytoSig IL27, hallmark complement,
+  hallmark IFN-α, hallmark IFN-γ — six, all interferon-type. GCA percentiles
+  for the pre-named set: IFNG 97.5, IFN-γ 96, IFN-α 93, IRF1 82, IFN1 78,
+  STAT1 64 (IBDverse 96–99). GCA excess is about a third of IBDverse's.
+- **Nothing shared at the bottom** (<= 10th percentile in both: none).
+- **Collagen / matrix:** NABA collagens 16th (IBDverse) and 23rd (GCA)
+  percentile, ECM regulators 19th / 21st, TGF-β 14th / 24th: ANTXR2 couples
+  a little less than matched genes, not an outlier. Core matrisome,
+  glycoproteins, basement membrane disagree between datasets.
+- Whole profile: Spearman 0.10 (excess) between datasets; IBDverse states
+  agree with each other at only 0.38–0.46, so the ceiling is low.
+- Program activity_mean agrees well across datasets (Spearman 0.76).
+
+### 3. Epithelial co-expression, both datasets (reference-scaled runs)
+
+IBDverse: 9 epithelial populations × 3 states = 26 cells. GCA: 7 populations
+(ANTXR2 floor 0.05). Per program, the median anchor percentile over the
+cells where it is active (activity_sd >= 0.2, in at least half the cells):
+511 programs in both. No pre-registered test (testing strategy deferred).
+- **The epithelial profile carries over:** Spearman 0.51 between datasets on
+  median percentile (0.56 on mean z), against 0.10 for fibroblasts.
+- **Low in both (median pct <= 20; 67 IBDverse, 13 GCA, 12 shared):** hallmark
+  E2F targets (3rd / 13th), E2F3 regulon (5th / 15th), HMGA1, TCF7, and
+  chromatin / repressor regulons (HDAC1, DNMT3A, KMT2B, HIC1, ZBTB17, SNAI2,
+  PAX8, ZKSCAN7).
+- **High in both (>= 80; 92 IBDverse, 30 GCA, 13 shared):** differentiation
+  regulons CDX2, HNF1A, KLF4, KLF5, PPARA, NR2F2, plus RB1, IRF1, NFATC3,
+  MAZ, DBP, FOXC2, LHX2.
+- **Proliferation set by GCA population** (percentile): TA — E2F 1, DNA
+  repair 2, MYC V1 3, MYC V2 4; stem — MYC V1 5, E2F 11; cycling goblet —
+  MYC V1 4, E2F 14. In GCA's non-dividing populations (Enterocyte, Goblet,
+  Paneth) the same programs are mid-range (35–83), whereas in IBDverse they
+  are low in 60–90% of all epithelial cells. So: replicated where cells
+  divide, not as an epithelium-wide tilt.
+- **Not replicated:** CytoSig TGF-β3 (IBDverse 90th, GCA 63rd), PROGENy
+  hypoxia (85th / 52nd), ZNF331 (86th / 37th).
+
+- **Whole-profile scatter** (`scripts/program_landscape_ref_scatter.py`,
+  `landscape_gca_ref/report/epithelial_pct_ibd_vs_gca.png`): 513 programs,
+  Spearman 0.51, Pearson 0.55; 356 (69%) on the same side of the 50th
+  percentile in both; slope 0.36 (GCA compressed toward the middle, SD 17
+  vs 25). The agreement runs through the whole cloud, not the extremes.
+  User's read (2026-11-10): favourable, justifies the cross-dataset design.
+
+- **Same scatter, other compartments** (`report/scatter_summary.csv`):
+  fibroblast 558 programs, Spearman 0.07 (1 GCA population); all
+  lymphocytes 503, 0.13; T 507, -0.04 (GCA Trm_CD4, Trm_Th17 at ANTXR2
+  0.05-0.07); B naive/memory 494, 0.30 (GCA ANTXR2 0.10-0.14).
+  Caveat on comparing compartments: the epithelial 0.51 is a median over
+  7 GCA populations; single matched epithelial pairs give 0.15-0.32
+  (all single cross pairs: median 0.19). Fibroblast single pairs: -0.03,
+  0.04, 0.21 against the three IBDverse states (which agree 0.38-0.46
+  among themselves). So fibroblasts are weaker than epithelium, but less
+  so than 0.07 vs 0.51 suggests; T cells show nothing.
+
+- **Scope decision (user, 2026-11-10): lymphocytes are dropped going
+  forward.** GCA Extended+ composition (level_1_annot): postnatal small
+  intestine 385,271 cells, 58% epithelial, 22% T/NK, 13% B/plasma, 2.7%
+  mesenchymal; whole atlas 1,596,200 cells, 41% epithelial.
+
+- **Fetal fibroblasts added to the GCA side (user, 2026-11-10).** Extended+
+  holds 59,192 fetal SI fibroblasts (26 donors; ANTXR2 0.23), in the same
+  file as the postnatal ones (`program_extract.py --source gca_fetal_fib`;
+  scored with `--pops fibroblast_fetal fibroblast_postnatal_fetal` on the
+  existing GCA reference SDs, earlier rows unchanged). Cross-dataset
+  Spearman vs IBDverse fibroblasts: postnatal 0.07, fetal 0.00,
+  postnatal + fetal -0.04 (63,362 cells, 49 donors; 0.92 with fetal
+  alone, since fetal is 93% of the pool). GCA fetal vs GCA postnatal
+  profiles agree only 0.05, so the two are not the same profile with
+  different noise. Fetal ANTXR2 sits above its anchors across the board
+  (median pct 67 vs 46 postnatal), as in the pilot. Interferon programs
+  stay high in the pool (IFN-g response 88, IFN-a 88, IFNG 80,
+  complement 93) but IRF2 drops to 61. More cells did not rescue the
+  fibroblast profile.
+
+- **Donor split-half inside each dataset (user, 2026-11-11;
+  `program_landscape_ref_donor_split.py`, `<run>/donor_split/`).** 200
+  random halvings of the donors; Spearman between the halves' program
+  percentile profiles (median, 10th-90th pct of splits), and the
+  Spearman-Brown reliability of the full-donor profile:
+  - GCA postnatal fibroblasts (24 donors, 4,225 cells): 0.04 (-0.04 to
+    0.11), positive in 73% of splits; reliability 0.07. **Not
+    reproducible against itself**, so it cannot replicate anything.
+  - GCA fetal fibroblasts (25 donors, 59,137 cells): 0.20; reliability 0.34.
+  - IBDverse fibroblasts: normal 0.29 (25 donors, 867 cells), CD
+    uninflamed 0.46 (18, 1,139), CD inflamed 0.21 (13, 532); reliability
+    0.35-0.63.
+  - Context, epithelium: GCA Enterocyte 0.25, Goblet 0.14, TA 0.12;
+    IBDverse top-villus enterocyte 0.73-0.89, MKI67 stem 0.32-0.70.
+  So the fibroblast cross-dataset failure is a GCA-side noise problem in
+  postnatal fibroblasts, not evidence of different biology; the fetal
+  profile is modestly reproducible and still does not match IBDverse.
+
+- **ECM programs in the most reliable fibroblast cell (IBDverse CD
+  uninflamed; raw rho, anchors set aside at the user's request,
+  2026-11-11).** 563 active programs, rho median 0.07, range -0.37 to
+  0.46; the top is immune/interferon (NPM1, STAT5A, IRF2, RELB, IRF1,
+  JAK-STAT, complement), not matrix. ECM programs, PC1 rho (rank of
+  563): TGF-b signalling 0.26 (53), coagulation 0.24, ECM glycoproteins
+  0.23 (82), proteoglycans 0.20; collagens -0.06 (436), ECM regulators
+  -0.18, basement membranes -0.18, EMT -0.22 (549), core matrisome
+  -0.22 (550). Signs hold in all three states. The matrix PC1s are
+  contrast axes, not 'more matrix': core matrisome/EMT + = COL6A1,
+  COL6A2, COL4A5/6, TNC, POSTN, LAMA5; - = DCN, LUM, FBLN1, TNXB; the
+  glycoprotein PC1 is the same axis flipped. ANTXR2 is on the
+  DCN/LUM/FBLN1 side in every case. Equal-weight rho is small and
+  unstable across states (core matrisome 0.07-0.28, collagens
+  0.00-0.15). Not yet checked at gene level.
+
+- **Testing strategy, first version: donor bootstrap (user, 2026-11-11;
+  `program_landscape_ref_test.py`, `<run>/test/`).** Compares two
+  population x state cells of one atlas per program: d_beta = beta_A -
+  beta_B and d_excess = (beta - mean anchor beta)_A - (...)_B. Donors
+  are resampled (2,000 draws; union of the two cells' donors, shared
+  donors kept paired) and the stored per-group sufficient statistics
+  re-summed; no within-donor cell resampling (planned as a second layer
+  in memento's GPU formulation once the host has a GPU). se = SD of
+  draws, normal-approximation p, BH q over programs.
+  - *Calibration* (20 random donor halvings of one cell tested against
+    each other, truth = 0; share of active programs with p < 0.05,
+    median over splits; nominal 0.05). IBDverse: top-villus enterocyte
+    (145 donors) 0.04, LGR5 stem (46) 0.05, fibroblast CD uninflamed (18)
+    0.06, CD inflamed (13) 0.04-0.06. GCA: Enterocyte (67) 0.04-0.05,
+    stem (12) 0.08, fibroblast (24) 0.02-0.04. So per-test size is about
+    right, mildly anti-conservative at 12 donors. But programs are
+    correlated: a single null split reached 13-51% of programs at
+    p < 0.05, so the COUNT of hits is not evidence. BH held better:
+    d_excess q < 0.05 never exceeded 5% of programs in a null split;
+    d_beta once hit 39% (GCA Enterocyte). Prefer d_excess.
+  - *First comparison, top-villus enterocyte vs LGR5 stem, normal.*
+    IBDverse (145 vs 46 donors, 37 shared): d_excess q < 0.05 for 120 of
+    527 programs (108 higher in enterocyte: RXRB, ETV4, NR2F2, KLF6,
+    CytoSig TNFA / IL1 / EGF / HGF; 12 lower: DNMT3A, SIRT1, SNAI2, ZEB1,
+    TCF4, TGFB3). GCA Enterocyte vs Epithelial_stem (67 vs 12 donors):
+    13 of 556. Across datasets d_excess correlates only 0.08 over 525
+    programs; of the 120 IBDverse hits, 65% have the same sign in GCA
+    and 21 are also p < 0.05 there. The contrast does not replicate as a
+    profile; GCA stem (12 donors, ANTXR2 0.058) is the weak arm.
+
+- **Testing moved into memento (user, 2026-11-14).** Branch
+  `feature/program-correlation` of scrna-parameter-estimation, in the
+  worktree `/home/ubuntu/Github/memento-program-correlation` (commit
+  84dbf6b, local only): `memento.ht_program_correlation` (pooled
+  within-group program coupling, reference scale, anchors as
+  `references` -> `excess`, contrast between two conditions, NumPy and
+  CUDA kernels). ANTXR2 adapter: `program_landscape_ref_memento.py`
+  (`compare`, `calibrate`, `--mode donors|both|cells`), outputs in
+  `<run>/test_memento/`; needs `PYTHONPATH=<worktree>`. Its observed
+  values reproduce coupling.csv and its donor-mode results reproduce
+  `program_landscape_ref_test.py` (294 / 117 programs at q < 0.05 for
+  d_beta / d_excess, top-villus vs LGR5 stem). 49k cells, 600 programs,
+  201 targets, 2,000 draws: 30 s on the T4, 108 s on CPU.
+  - *Which layer to resample* (20 null donor-half splits each; share of
+    programs with d_excess p < 0.05, SD of z; nominal 0.05 and 1):
+    donors only 0.04-0.07, 0.93-1.01; cells only 0.05-0.06, 0.93-1.01;
+    donors + cells 0.000-0.005, 0.58-0.67 (LGR5 stem 46 donors,
+    fibroblast CD uninflamed 18, CD inflamed 13). The two-level
+    bootstrap double counts cell sampling noise (SE ~1.5x too large);
+    donors only is the default. Cells only is also calibrated on this
+    null, i.e. donor-to-donor variation in coupling is small next to
+    cell sampling noise here, but it assumes independent cells.
+  - Correlated programs still make hit counts unreliable: one null
+    split reached 17% of programs at q < 0.05 (donors only).
+  - Host: the T4 needed the 580-server NVIDIA driver for kernel
+    6.8.0-1066 (535 had modules for 6.5 only); torch 2.5.1+cu121 is in
+    the venv.
+- **Donors as strata (user, 2026-11-15).** User's view: when both cell
+  types exist in each donor, resample cells within donor x cell type only
+  (= `--mode cells`); `compare --shared` restricts to shared donors.
+  Top-villus vs LGR5 stem, 37 shared donors, 17,384 of 49k cells:
+  d_excess q < 0.05: cells 35, donors 3, both 0 (median se 0.022 / 0.024 /
+  0.033); d_beta 250 / 212 / 102. Donor/cell SE ratio per program median
+  1.10 (IQR 0.99-1.25), so donor x cell-type variation in coupling is
+  small. Restricting to shared donors costs 26% in SE; all donors, cells
+  mode: 134 (the 35 are a subset). Memento's `resample_rep` is the same
+  two-stage scheme as `both`; toy simulation: calibrated when donor
+  variance >= 10x cell noise, sqrt(2) SE inflation when ~0 (our case,
+  ratio 1.37-1.39).
+- **Mixed-model-type test (user, 2026-11-15; prototype
+  `program_landscape_ref_mixed.py`, outputs `<run>/test_mixed/`).**
+  Coupling written as a per-cell mean of z = S~ T~ / (sd_T sigma_ref);
+  random donor intercept on z, moment estimate of between-donor variance
+  (truncated at 0), GLS mean with weights 1 / (sb2 + se2 / n_i). sd_T
+  fixed; donor effects of the two cell types treated as independent.
+  - Top-villus vs LGR5 stem, d_excess q < 0.05 of 527: mixed 66 (median
+    se 0.022) vs donor bootstrap 117 (0.018), cell bootstrap 134 (0.017),
+    analytic cells-only 113 (0.019). d_beta: 250 vs 294 / 319 / 289.
+  - Null donor halves (200 splits): mixed is conservative, 1.9-3.2% at
+    p < 0.05, z SD 0.81-0.91 (top villus, stem, fibroblast CD uninflamed
+    / inflamed); analytic cells-only 2.4-6.8%, z SD 0.84-1.05.
+  - sb2 > 0 in 87% of top-villus programs yet cells-only is calibrated
+    there, so the moment estimate is biased up (truncation; probably
+    unequal within-donor variances).
+  - Donor-specific within-donor variances (DerSimonian-Laird, `--het`):
+    SE halves (0.010) but the estimate moves (r 0.60 with pooled for
+    d_excess) because precision weights favour low-variance donors; null
+    still conservative in median (2.4-3.6%) with unstable splits (max 57%
+    of programs at p < 0.05). Not usable.
+  - No power gain here: between-donor variance in coupling is ~0, so the
+    model can only add a noisy non-negative term.
+- **Decision (user, 2026-11-15): headline test = cells resampled within
+  donor x subtype strata, all donors** (`--mode cells`, now the adapter
+  default; files end `__cells`). Donor bootstrap is the check.
+  - IBDverse top-villus vs LGR5 stem: d_excess q < 0.05 134 of 527
+    (d_beta 319). GCA Enterocyte vs stem (119,093 cells): 11 of 556
+    (d_beta 86), median se 0.029. Fibroblast CD uninflamed vs inflamed:
+    0 (d_beta 1).
+  - Across datasets (525 shared active programs): d_excess Spearman 0.08,
+    3 programs significant in both (all same sign), 64% of IBDverse hits
+    same sign in GCA; d_beta Spearman -0.02, 48 significant in both, only
+    19 same sign. The enterocyte-vs-stem difference does not replicate,
+    whatever the test.
+- **Enterocyte vs fibroblast (user, 2026-11-15: "an easier one"), cells
+  mode, normal tissue.** IBDverse top-villus vs pooled fibroblasts (867
+  fibroblast cells in groups): d_excess q < 0.05 39 of 574 (d_beta 48),
+  median se 0.067. GCA Enterocyte vs pooled fibroblasts (4,225 cells):
+  2 of 590 (d_beta 7), se 0.051.
+  - The contrast is the fibroblast side: corr(d_excess, -fibroblast
+    excess) 0.97 in both datasets (SD of excess: enterocyte 0.03 / 0.02,
+    fibroblast 0.13 / 0.06); 20 of the 39 IBDverse hits are programs
+    active only in fibroblasts.
+  - IBDverse hits: ANTXR2 couples in fibroblasts more than in enterocytes
+    to coagulation, ECM glycoproteins, NR1H2, TBX2, SNAI2, SMAD7; less to
+    (negative in fibroblasts) collagens, core matrisome, basement
+    membranes, EMT, TGFb, GLI2/3, ZEB2, SMAD3 - the same fibroblast
+    contrast axis as the ECM sanity check.
+  - No replication: d_excess Spearman 0.07 across datasets (0.06 on
+    programs active in both), 0 significant in both, 28 of 39 IBDverse
+    hits same sign in GCA. GCA estimates are noise: variance of d_excess
+    across programs / mean se^2 = 0.99 (IBDverse 2.3).
+- **Skin fibroblasts (user, 2026-11-15: replicate where fibroblasts are
+  plentiful).** Human dermal fibroblast atlas (CELLxGENE dataset a19d1667,
+  version 8ae4471a, 25 studies, fibroblasts only; `/data/antxr2/raw/skin/`,
+  1.8 GB). Healthy, 10x 3' v2 / v3: 78,643 cells, 105 donors (96 with a
+  >= 20-cell group). `ANTXR2_LANDSCAPE=skin` (+ `_RUN=ref`), IBDverse
+  weights, own reference SDs -> `landscape_skin_ref/`. Two populations:
+  pooled within donor, and within donor x author cluster (`cluster_robust`).
+  ANTXR2 raw mean 0.29 / cell (IBDverse fibroblasts 1.57, GCA 0.31).
+  - Reliable: donor split-half 0.58 (reliability 0.73; by cluster 0.48 /
+    0.65), vs IBDverse fibroblasts 0.21-0.46 and GCA 0.04. Excess q < 0.05
+    (cells mode): 173 of 600 (by cluster 104); median se 0.011. Pooled vs
+    by-cluster profiles agree 0.91.
+  - Whole profile does not match gut: skin vs IBDverse fibroblasts
+    (precision-weighted over the 3 states, 551 programs) Spearman -0.05;
+    159 IBDverse hits, 85 same sign in skin; 61 significant in both, 38
+    same sign. By collection: matrisome +0.50 (8), cytosig +0.31 (42),
+    hallmark +0.12 (47), CollecTRI -0.11 (438; 24 of 44 same sign).
+  - The ECM axis does replicate in sign: negative in both for collagens
+    (skin -0.051 / IBDverse -0.138), core matrisome (-0.026 / -0.195),
+    basement membranes (-0.044 / -0.222), EMT (-0.024 / -0.227),
+    myogenesis (-0.037 / -0.221); positive in both for coagulation
+    (0.043 / 0.359), proteoglycans (0.060 / 0.149), IFN-alpha (0.030 /
+    0.173), IFN-gamma (0.023 / 0.176). All q < 0.05 in both. Skin effects
+    are 4-10x smaller. Not matched: ECM glycoproteins, ECM regulators,
+    ECM-affiliated, progeny TGFb (skin n.s.).
+  - `program_landscape_ref_memento.py estimate --cell` gives per-cell
+    coupling / excess with cell-bootstrap SE (`<run>/test_memento/
+    *__estimate__cells.csv`).
+- **ANTXR2 vs individual collagens (user, 2026-11-18).**
+  `program_landscape_ref_memento.py genes --cell C` (matrisome collagens
+  clearing the 0.07 floor; each gene its own one-gene "program", scale None
+  -> noise-corrected correlation pooled within donor x subtype; excess over
+  the cell's 200 matched anchors; cells mode, 2,000 draws, CPU because the
+  GPU driver is not loaded on kernel 6.8.0-1069). Table:
+  `landscape_skin_ref/test_memento/collagen_genes_skin_vs_gut.csv` (gut =
+  IBDverse fibroblasts, precision-weighted over normal / CD uninflamed /
+  CD inflamed).
+  - Skin (25 genes, median se 0.013): raw correlations all small (-0.01 to
+    0.15). Excess below anchors (q < 0.05) for COL1A1 -0.053, COL1A2
+    -0.044, COL3A1 -0.052, COL5A1 -0.053, COL5A2, COL5A3, COL4A1, COL6A1
+    -0.039, COL6A2 -0.044, COL18A1 -0.057; above for COL15A1 +0.103 (pct
+    97). COL6A3 -0.015 n.s.
+  - Gut (median se 0.045 combined, 0.07-0.10 per state): COL6A1 -0.178,
+    COL6A2 -0.172, COL6A3 -0.121, COL1A1 -0.112, COL4A5 -0.191, COL12A1
+    -0.157 (p < 0.05); COL14A1 +0.123, COL25A1 +0.099. Raw correlation
+    with COL6A1/A2 negative in all three states (-0.11 to -0.24).
+  - Skin vs gut over 22 shared genes: excess Spearman 0.26, 17 same sign;
+    COL6A1/COL6A2 and COL1A1 negative in both. GCA: nothing (0 of 20).
+  - Skin pooled within donor x author cluster (`cluster_robust`, 17
+    clusters): COL6A1 / COL6A2 excess -0.001 / -0.002 (n.s.), COL1A1 /
+    COL1A2 -0.027 / -0.024 (q 0.058), COL3A1 -0.027 (q 0.025); COL15A1
+    +0.094 stays (q < 0.001). Only 2 of 25 q < 0.05 (pooled: 11); excess
+    profiles agree 0.62. So the skin COL6 result is between-subtype
+    composition, not within-subtype covariation.
+  - Gut, pooled within donor x author subtype (LP ADAMDEC1, CPM, Crypt
+    PI16, C3; 20-cell floor keeps 456 / 877 / 307 cells of 10 / 10 / 7
+    donors; scratchpad driver over `cmd_genes`, outputs
+    `landscape_ref/test_memento/by_author_subtype/`): COL6A1 excess -0.178
+    -> -0.087 (p 0.11), COL6A2 -0.172 -> -0.069 (p 0.24), COL1A1 -0.112 ->
+    -0.041, COL12A1 -0.157 -> -0.067; COL4A5 -0.124 stays (p 0.02).
+    Composition explains about half of the gut COL6 effect; the remainder
+    is not significant with ~40% fewer cells.
+  - What the subtypes are (user asked, 2026-11-18). Skin `cluster_robust`
+    = the atlas authors' consensus populations (Ascension & Izeta, bioRxiv
+    2024.09.05.611379): 5 axes A-E (A ECM-secreting, A2 papillary; B
+    immune; C hair-follicle, C1 sheath / C2 papilla; D, E1) plus T / U,
+    which the authors call unreliable. They describe A as a continuum and
+    A3, B3, C5, E1 as bridges. In our cells A4 is 92% one study with
+    mito-RNA markers, U is mito / KRT14, and B1 (CXCL1/2/3, IL6, NFKBIA,
+    MT2A) looks like an activation / dissociation state (Tabula Sapiens 92%
+    B1, Boothby 80%). Between-cluster driver: ANTXR2-high E1 (1.70 per 10k),
+    C2 (1.08), B4 (0.87) are COL6-low (20-35); A2 is ANTXR2 0.62, COL6 98.
+  - Gut author subtypes are distinct populations: Fibroblast CPM (SOX6, F3,
+    BMP4, POSTN, COL4A5; subepithelial-type) vs LP fibroblast ADAMDEC1
+    (ADAMDEC1, APOE, CFD). Only these two reach 20 cells per donor (12 / 24
+    donors; PI16 1, C3 0; 10 donors in >= 2 subtypes). Donor-median COL6
+    55 vs 16 per 10k, ANTXR2 1.89 vs 2.49: COL6/ANTXR2 29 vs 6.5.
+  - In skin the raw ANTXR2-COL6 correlation is slightly positive (0.04-0.05);
+    the negative excess is relative to anchors (0.09), i.e. ANTXR2 tracks
+    COL6 less than a matched gene does. In gut it is negative outright.
+- **Single subtype per tissue (user, 2026-11-18: use the largest, most
+  reliable subtype, donor x batch groups).** One sample per donor in both
+  atlases, so groups = donor. Gut: IBDverse LP fibroblast ADAMDEC1, normal
+  + CD uninflamed pooled (`fibroblast ADAMDEC1 uninflamed`; each state
+  alone has 9-10 donors), 983 cells in 19 donor groups. Skin: dermal atlas
+  A3 (`fibroblast A3`; B1 excluded as stress state), 16,931 cells, 70
+  donors.
+  - Donor split-half of the program profile: gut 0.04, skin 0.22
+    (pooled skin fibroblasts were 0.58).
+  - Programs, excess q < 0.05: 0 of 561 (gut), 0 of 600 (skin); p < 0.05
+    41 / 90. Skin vs gut excess Spearman -0.02 (561); raw beta 0.67, i.e.
+    shared with matched genes. Nominal in both: IFN-alpha (skin 0.056, gut
+    0.122) and IFN-gamma (0.053 / 0.129), coagulation (0.039 / 0.123, gut
+    n.s.).
+  - Collagens: none q < 0.05 in either. COL6A1/A2/A3 excess skin +0.031 /
+    +0.011 / +0.049, gut +0.034 / +0.055 / -0.052. COL1A1 skin -0.038 (q
+    0.53), gut +0.009.
+  - Reading: within one fibroblast subtype ANTXR2 has no detectable
+    excess coupling to collagens or ECM programs in either tissue; the
+    earlier negative ECM / COL6 signal was between-subtype composition. The
+    COL6/ANTXR2 question is a subtype-level mean question.
+- **Can the matched-gene bar be beaten? (user, 2026-11-18: "maybe the
+  negative control is a bit too hard to beat").** Positive controls with
+  fibroblast ECM roles, none in the collagen/core matrisome programs (MRC2,
+  ITGA11, DDR2, FAP, PDGFRB, LRP1, ANTXR1), each against its own 200 anchors
+  chosen as ANTXR2's are, same subtypes, cell resampling
+  (`program_landscape_ref_controls.py`; `{cell}__controls.csv`).
+  - Skin A3 (70 donors), programs at excess q < 0.05: PDGFRB 484, MRC2
+    467, LRP1 464, ANTXR1 238, FAP 196, ITGA11 27, DDR2 14, ANTXR2 0.
+    NABA_COLLAGENS anchor percentile: MRC2 100, PDGFRB 98, ITGA11 98,
+    LRP1 96, ANTXR1 95, FAP 70, ANTXR2 52, DDR2 44.
+  - Gut ADAMDEC1 (19 donors): PDGFRB 29, MRC2 11, DDR2 3, all others 0
+    (FAP below floor). Collagens pct: LRP1 97, MRC2 97, ANTXR2 92, PDGFRB
+    82, ANTXR1 76, DDR2 73, ITGA11 32.
+  - The top passers (PDGFRB, MRC2, LRP1) beat their anchors on ~80% of all
+    programs (median pct 93-94), i.e. they sit on the dominant fibroblast
+    activation axis rather than having ECM-specific coupling.
+  - IFN programs: in gut ANTXR2 is the highest of the 7 genes (pct 93-99 on
+    IFN-alpha/gamma, IFN1, JAK-STAT, IRF1/4); in skin it is high (78-94)
+    but LRP1/PDGFRB match it.
+  - Reading: in skin the bar is beatable (5 of 7 controls clear it on
+    collagens), so ANTXR2's null there is real: it couples to collagens like
+    a typical fibroblast gene of its size. The gut single-subtype test is
+    underpowered (even PDGFRB barely clears it); ANTXR2's gut point
+    estimates sit with the controls.
+- **COL6/ANTXR2 demoted to a side note (user, 2026-11-18); interferon is the
+  lead.**
+- **Interferon across cell types (user, 2026-11-18: "is that only in
+  fibroblasts?").** Pre-specified set of 8 programs (hallmark IFN-alpha,
+  IFN-gamma; CytoSig IFN1, IFNG; CollecTRI IRF1, IRF2, STAT1; PROGENy
+  JAK-STAT), `estimate --units ... --tag ifn` (q over the 8), cells mode, every
+  non-lymphocyte filled cell (`*__estimate__ifn__cells.csv`). Median excess
+  (programs q < 0.05; none negative anywhere):
+  - IBDverse, normal / CD uninflamed / CD inflamed: fibroblasts 0.12 / 0.18 /
+    0.22 (8/8 each); top-villus enterocytes 0.045 / 0.077 / 0.137 (8/8 each);
+    crypt OLFM4lo progenitors 0.024 / 0.048 / 0.127 (8/8 each); goblet
+    MUC2hi 0.029 / 0.046 / 0.058 (7, 8, 6); MKI67 stem 0.012 / 0.032 /
+    0.094 (1, 0, 8); LGR5 stem -0.011 / -0.008 / -0.028 (0). Rises with
+    inflammation in every population.
+  - GCA (normal): goblet 0.156 (8/8); fibroblasts postnatal 0.052 (0, se
+    0.036), postnatal + fetal 0.033 (5); enterocyte 0.015 (0); TA -0.013,
+    Paneth -0.037.
+  - Skin: A3 0.046 (5/8), pooled 0.017 (4/8).
+  - IBDverse Ileum goblet MUC2lo BCAS1int (3 states) hit the estimate's
+    beta-vs-landscape assert; not resolved.
+- **Stimulated airway epithelium (user, 2026-11-18: memento's HTECs).**
+  `program_htec_ifn.py`, GEO GSE274751 (`GSE274751_HTEC_counts.h5ad`,
+  `/data/antxr2/raw/htec/`): 69,958 cells, 2 donors, IFN-alpha / beta /
+  gamma / lambda x 3-48 h + 2,360 unstimulated. Outputs
+  `output/htec_ifn/`.
+  - ANTXR2 is low: 0.137 counts / cell in ciliated, ~0.06 in basal and club
+    (below the 0.07 floor). Mean vs control (UMI-pooled per donor, donor
+    mean), ciliated: alpha 1.2-2.2x, beta 1.25-1.5x at every time point
+    (pooled alpha 1.65x / 1.56x in the two donors); gamma, lambda ~1.
+    Basal down (gamma 0.2-0.5x), club ~0.8-1.
+  - Ciliated coupling (noise-corrected correlation, scale None, strata donor
+    x time, 200 matched anchors, cell bootstrap 2,000): 8/8 IFN programs
+    excess q < 0.05 under alpha (excess 0.13-0.18, pct 90-94) and beta
+    (0.15-0.27, pct 91-97); lambda same direction, n.s. (0.05-0.15, q
+    0.14-0.43); gamma ~0 (pct 60-86); unstimulated 0.01-0.13 n.s. (739
+    cells, se 0.095). Anchors' mean correlation turns negative under
+    stimulation (~-0.05): compositional, ISGs take read share.
+  - All 600 programs (500 draws): IFN programs rank 3-68 under beta
+    (JAK-STAT 3rd, IFN1 9th), 20-62 under alpha; 34 / 48 programs q < 0.05
+    overall (29 / 36 positive), many IFN-adjacent (STAT4, IL27, IFNL,
+    allograft rejection). ANTXR2's median excess over all programs is
+    +0.02-0.03 under alpha / beta, so IFN (~0.2) stands well above its own
+    baseline. Gamma and lambda: nothing.
+  - Reading: in ciliated cells ANTXR2 is a weak type I ISG (mean and
+    cell-to-cell); matches the tissue picture (coupling largest where IFN
+    tone is highest, absent in stem / TA). Basal cells go the other way.
+- **Type I IFN gut single-cell data (user, 2026-11-20).** None found with
+  direct recombinant type I / III treatment. Closest: GSE171620 (Triana 2021,
+  human ileal organoids, astrovirus mock / 4 h / 16 h, endogenous IFN
+  response) and GSE156760 (colon / ileal organoids, SARS-CoV-2 mock / 12 /
+  24 hpi; ISGs in bystanders). GSE142166 (IFN-beta / lambda organoids) is
+  mouse bulk.
+- **IFN-gamma colon organoids (user, 2026-11-20).**
+  `program_organoid_ifng.py`, GEO GSE255366: mouse, one organoid line,
+  untreated / IFN-gamma 24 h / 48 h, 60,134 cells (>= 1,000 UMI, mt <= 25%;
+  median 1.3-1.9k UMI). Mouse -> human by MGI one-to-one homology
+  (`annotation/HOM_MouseHumanSequence.rpt`). Outputs `output/organoid_ifng/`.
+  - Strong response (Stat1 ~17x, Cxcl10 ~300x, Cd74 up); colonocytes mostly
+    lost. Leiden clusters on non-induced genes still split by sample.
+  - Antxr2 sits in stem / cycling clusters (1.3-2.0 counts / cell), ~0.02 in
+    colonocytes, ~0.01 in the treated-only clusters. Per 10k: stem 0.79 /
+    0.89 / 1.77, cycling 0.29 / 0.23 / 0.41 (untreated / 24 h / 48 h): no
+    consistent induction.
+  - Coupling, IFN set, strata sample x cluster (>= 20 cells): stem / cycling
+    (6,367 cells, raw mean 0.92) excess -0.11 to +0.07, pct 10-78, nothing
+    q < 0.05 (24 h leans negative on hallmark IFN / JAK-STAT, q 0.11); all
+    cells excess -0.03 to +0.05, q >= 0.19.
+  - Reading: no IFN-gamma coupling or induction, as in HTEC IFN-gamma. Caveats:
+    mouse, one line, no replication; Antxr2 is in the stem compartment, where
+    tissue coupling was also absent (IBDverse LGR5 stem).
+- **Type I vs IFN-gamma split, and fibroblast type I (user, 2026-11-21).**
+  `program_ifn_type_split.py` (outputs `output/ifn_type_split/`). Coupling here
+  is the noise-corrected correlation (scale None), so tissue numbers are not on
+  the beta scale of the earlier IFN-set table.
+  - Sets from HTEC pseudobulk (6-48 h vs unstimulated, median log2FC over 6
+    cell type x donor): type I-biased 49 genes (MX1/2, OAS1-3, IFIT1-3, RSAD2,
+    ISG15, IFI44L, IRF7, USP18, CXCL10/11); gamma-biased 22 (CIITA, HLA-II,
+    CD74, CXCL9, IRF1, GBP1/2/5, IDO1, WARS); shared 26 (STAT1, TAP1/2, PSMB8-10,
+    HLA-E/F). Strict "only" sets are 2-15 genes: gamma induces ISGF3 genes ~2x
+    in airway epithelium. Residual programs I|G and G|I (one set minus its
+    within-stratum, noise-corrected regression on the other) stay linear.
+  - **Within-cell coupling cannot name the cytokine.** HTEC ciliated (positive
+    control): under pure IFN-beta the coupling sits on G|I (0.17, q 0.03), not
+    I|G (0.07, n.s.); alpha splits weakly. Gamma-biased genes vary cell-to-cell
+    with the type I response. In tissue both residuals are positive in places
+    (I|G q < 0.05 in top-villus x3, crypt OLFM4lo uninflamed / inflamed; G|I in
+    crypt normal / inflamed, top-villus inflamed): uninformative by design.
+  - **Between samples, means do name it.** `donors`: per donor x state sample,
+    log2 ANTXR2 per 10k ~ standardized type I + gamma set scores (+ state;
+    donor-clustered SE). HTEC ciliated (control, samples donor x stim x time):
+    type I +0.24 (p < 1e-4), gamma +0.06 (n.s.); basal gamma -0.26 (p 0.02).
+    IBDverse: crypt OLFM4lo type I +0.14 (p < 0.001; inflamed +0.45, uninflamed
+    +0.28, normal +0.07), gamma ~0 in every state; LGR5 stem type I +0.20 (p
+    0.004), gamma -0.07; top-villus pooled both +0.10, inflamed type I +0.36 (p
+    < 0.001) vs gamma +0.09; fibroblasts n.s. (13-25 donors per state); goblet
+    nothing. Set scores correlate 0.6-0.9 across samples.
+  - ANTXR2 per 10k by state (normal / uninflamed / inflamed): top-villus 0.86 /
+    0.89 / 1.17, crypt OLFM4lo 0.82 / 0.83 / 1.07, fibroblasts 2.30 / 2.46 /
+    2.35, goblet MUC2hi 1.44 / 1.37 / 1.26, LGR5 stem 0.53 / 0.50 / 0.56. Set
+    activity rises with inflammation everywhere (fibroblast type I 3.3 / 4.0 /
+    4.2, gamma 0.9 / 1.3 / 1.5).
+  - Fibroblasts, IFN-beta (Hagai 2018, E-MTAB-7051; Smart-seq2, 5 donors, 681
+    cells, 2 / 6 h, no unstimulated cells; reads, not UMIs): 6 h, 7 of 8 IFN
+    programs q < 0.05 (excess 0.15-0.22, pct 99-100; IRF2 null), type I-biased
+    0.20 (q 0.002), I|G 0.17 (q 0.001), G|I 0.05 (n.s.). All 605 programs: 37
+    at q < 0.05, median excess 0.012; top are TNF / NF-kB (CytoSig TNFA 0.28,
+    PROGENy NFkB 0.27), IFN programs rank 5-40. 2 h: nothing (1 program q <
+    0.05). ANTXR2 per 10k 2 h -> 6 h not consistent across donors (0.36-0.82).
+    No unstimulated cells in this experiment (checked SDRF / IDF); sibling
+    Smart-seq2 controls (E-MTAB-7037, 306 cells, pooled wuye / wetu / vass,
+    other plate; E-MTAB-5920 / 6066, ~30-60 cells) belong to dsRNA runs.
+    The memento paper's Hagai2018 sets (memento repo, publication/.../
+    bulk_comparison/hagai) are the Squair-compendium mononuclear phagocytes
+    (mouse / pig / rabbit / rat, LPS / poly I:C), not these fibroblasts.
+    E-MTAB-7167 (Hang et al., unstimulated HipSci dermal fibroblasts,
+    Smart-seq2, 30 donors incl. joxm 83 / vass 66 / wetu 89 cells) is the only
+    unstimulated single-cell match for IFN-beta donors: other study and library
+    prep, FASTQ only (no matrix).
+  - **Induction: bulk, paired (Hagai E-MTAB-5919, `bulk`).** Untreated vs
+    IFN-beta 8 h, per donor, median-of-ratios. Columns are lane ids with no key
+    in the SDRF; treatment called from MX1 / IFIT1 / RSAD2 (ISG log2FC 5-9),
+    pairs by correlation on non-responsive genes (always the adjacent lane).
+    Human ANTXR2 up in 6 / 6 donors, log2FC +0.53 (+0.39 to +0.66; 1.3-1.6x,
+    joxm and pelm among them). Rhesus -0.11 (6 / 6 slightly down), mouse -0.19
+    (3), rat +0.08 (3): the induction is human-specific here, consistent with
+    the no-induction mouse organoid result.
+  - **Immune contamination (user, 2026-11-21, light-touch; `contam`,
+    `output/ifn_type_split/contam/`).** Fibroblasts, top-villus, crypt
+    OLFM4lo x 3 states, 1,000 draws, IFN-set median excess (scale None):
+    all cells / without >= 2 UMI of pan-immune genes (PTPRC, CD52, LYZ,
+    TYROBP, ...; keeps 77-99%) / without each donor's top quarter by ambient
+    plasma-cell Ig (IGKC, IGHA1, JCHAIN, ...; keeps 75-90%). Fibroblasts
+    0.245 / 0.250 / 0.250 (normal), 0.242 / 0.184 / 0.256 (uninflamed),
+    0.261 / 0.277 / 0.290 (inflamed); top-villus 0.090 / 0.082 / 0.076,
+    0.135 / 0.118 / 0.128, 0.164 / 0.159 / 0.163; crypt 0.079 / 0.077 /
+    0.079, 0.112 / 0.095 / 0.102, 0.224 / 0.193 / 0.228. All 8 programs stay
+    q < 0.05 in epithelium (fibroblast counts drop to 3-5 / 8 where n falls
+    to 650-880). ANTXR2's own coupling to the contamination programs is ~0:
+    ambient Ig -0.02 to +0.02 in epithelium (fibroblast normal 0.25 +- 0.16,
+    n.s.), immune-doublet -0.04 to +0.07. Crypt inflamed carries the most
+    immune reads (4.1 UMI / cell, 0.1 after the filter) and keeps 0.19.
+    Reading: not carried by immune-derived reads.
+  - **Cross-species replication (Shaw et al. 2017 PLoS Biol, type I IFN,
+    10 species; webserver isg.data.cvr.ac.uk, POST
+    ISGwebServer/queryByGeneNameOrEnsemblId; saved in
+    `output/ifn_type_split/shaw2017/`).** ANTXR2 log2FC (FDR): human +1.13
+    (5e-18, called an ISG); rat +0.10 (0.36), cow -0.50 (0.03, down), sheep
+    +0.02, pig +0.11, horse -0.33 (0.05), dog +0.04, flying fox -0.30, little
+    brown bat -0.04, chicken +0.02 (all n.s. unless noted). Up only in human
+    of 10; independent of Hagai (human 6 / 6 up, macaque / mouse / rat not).
+    No macaque or mouse in Shaw. ANTXR1 (paralog): human -0.06, n.s.
+    - *Ortholog flags checked 2026-11-21* (raw `q_ANTXR2.json`, fields 6-8 of
+      each gene array): the 9 nulls are not detection failures. ANTXR2 is
+      `present` AND `expressed` in all 10 species, one ortholog cluster
+      (HS9951), protein identity to human 86-91% in the mammals (69% chicken).
+      dN/dS 0.18-0.26 wherever reported (rat 0.206, cow 0.196, sheep 0.191,
+      pig 0.181, horse 0.196, dog 0.248, little brown bat 0.259; None for
+      human / flying fox / chicken): strong purifying selection on the
+      protein alongside human-restricted induction. This closes the main hole
+      in the cross-species claim and supplies the "conserved sequence,
+      unconserved regulation" framing.
+  - **Promoter (user, 2026-11-21, "internet search for #2").** No literature
+    on ANTXR2 promoter IFN regulation found. ChIP-Atlas (hg38, +-5 kb of TSS;
+    `annotation/chipatlas/`): ANTXR2 has weak STAT1 / STAT2 / IRF1 peaks in a
+    minority of experiments (STAT1 20% of 103, avg score 55, 58th pct;
+    IRF1 14% of 56; IRF9 1 of 56), the level of GAPDH, not of ISGs (MX1 /
+    IFIT1 99th pct). Motif scan of -1 kb..+0.5 kb around the Ensembl gene
+    start: human ANTXR2 carries a full canonical ISRE at +72
+    (AGTTTCTTTTTCT, consensus AGTTTCNNTTTCN) and a core at -179; mouse
+    Antxr2 has none in the same window. Weak evidence (one window around the
+    annotated start; AT-rich human sequence, GC 0.39 vs 0.53; the same scan
+    misses human MX1's ISREs, which sit outside this window).
+  - Fibroblasts, dsRNA (E-MTAB-5988 / 5989; 10x, 3 donors pooled, not
+    demultiplexed; 2,553 unstimulated, 1,944 poly I:C 6 h): ANTXR2 0.23 -> 0.35
+    per 10k (1.5x, one pooled sample). 6 h: IFN programs excess 0.44-0.48 (pct
+    98), but 285 / 605 programs q < 0.05, median excess 0.107, NF-kB / TNF /
+    inflammatory as high: a responder-state effect, not IFN-specific.
+    Unstimulated: nothing.
+  - Reading: cytokine identity has to come from stimulation and from means.
+    Both point to type I: alpha / beta induce and couple (HTEC), IFN-beta
+    couples in dermal fibroblasts at 6 h, gamma does neither (HTEC, mouse colon
+    organoids), and across tissue samples ANTXR2's mean follows type I, not
+    gamma, activity in crypt progenitors, stem and inflamed enterocytes.
+    Fibroblast tissue means are underpowered. The fibroblast IFN-beta coupling
+    shares the top with NF-kB / TNF.
+
+**Reading.** In both datasets ANTXR2 co-varies with the differentiation
+regulons and against E2F / proliferation within epithelial populations —
+the within-population counterpart of the step 1 mean result, probably the
+same maturation gradient seen two ways rather than an independent finding.

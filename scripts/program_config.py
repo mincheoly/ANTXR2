@@ -270,3 +270,95 @@ LANDSCAPE_LINEAGES = {
     "myeloid": ["Monocyte S100A8/9", "Macrophage CD163lo", "Macrophage CD163hi"],
     "fibroblast": [LANDSCAPE_FIB],
 }
+IBDVERSE_LANDSCAPE_CELLS = LANDSCAPE_CELLS
+
+# Replication atlas (planning note, "Step 4 plan"): GCA Extended+ postnatal
+# small intestine, normal donors, every level_3_annot type with >= 10 donors
+# holding a >= 100-cell group. ANTXR2_LANDSCAPE=gca switches every landscape
+# script to it; it is scored with the IBDverse landscape's weights
+# (LANDSCAPE_WEIGHTS_FROM), never re-fitted.
+SOURCES["gca_landscape"] = SOURCES["extended"]
+GCA_LANDSCAPE_CELLS = CELLS_DIR / "landscape_gca"
+GCA_LINEAGES = {
+    "epithelial": ["Enterocyte", "TA", "Goblet", "Goblet_progenitor", "Goblet_cycling",
+                   "Paneth", "Epithelial_stem"],
+    "lymphocyte": ["Trm_CD8", "Trm_CD4", "Trm_Th17", "B_plasma_IgA1", "B_memory", "B_naive"],
+}
+GCA_LANDSCAPE_POPS = [p for ps in GCA_LINEAGES.values() for p in ps]
+GCA_LINEAGES["fibroblast"] = [LANDSCAPE_FIB]     # level_2_annot == GCA_FIB_LEVEL2, pooled
+GCA_FIB_LEVEL2 = "Fibroblast"
+# Fetal SI fibroblasts (user, 2026-11-10: boost the fibroblast arm; Extended+
+# holds 59,192 from 26 donors). Scored in the ref run as two extra
+# populations: fetal alone, and postnatal + fetal pooled (within donor x
+# subtype, so the age difference in means does not enter the correlations).
+GCA_FIB_FETAL = "fibroblast (fetal)"
+GCA_FIB_ALL = "fibroblast (postnatal + fetal)"
+SOURCES["gca_fetal_fib"] = SOURCES["extended"]
+# Skin fibroblasts (user, 2026-11-15: replicate the fibroblast coupling where
+# fibroblasts are plentiful). Human dermal fibroblast atlas (CELLxGENE
+# collection 3c4f0970, 25 studies integrated, fibroblasts only): healthy skin,
+# 10x 3' v2 / v3. Two populations over the same cells: pooled within donor,
+# and within donor x author cluster (cluster_robust).
+SOURCES["skin_fib"] = dict(version_id="8ae4471a-2e70-47b5-bc42-4f0df26a9996",
+                           dataset_id="a19d1667-a7b5-4556-9e5f-f9bfa690c0f1",
+                           h5ad=ROOT / "raw" / "skin" / "dermal_fibroblast_atlas.h5ad",
+                           size=1_831_628_432)
+SKIN_LANDSCAPE_CELLS = CELLS_DIR / "landscape_skin"
+SKIN_ASSAYS = ["10x 3' v2", "10x 3' v3"]
+SKIN_FIB_CLUSTER = "fibroblast (by cluster)"
+# Single most reliable subtype per tissue (user, 2026-11-18): donor groups
+# (one sample per donor in both atlases, so donor x batch = donor).
+IBD_FIB_MAIN = "fibroblast ADAMDEC1"     # IBDverse author_cell_type LP fibroblast ADAMDEC1
+# Same cells, normal + CD uninflamed pooled (each alone has 9-10 donors with
+# >= 20 cells). Its disease labels are rewritten to "normal|uninflamed", so the
+# cell id reads "@normal" but holds both uninflamed states.
+IBD_FIB_MAIN_UNINF = "fibroblast ADAMDEC1 uninflamed"
+SKIN_FIB_MAIN = "fibroblast A3"          # dermal atlas cluster_robust A3 (B1 = stress state, excluded)
+LANDSCAPE_EXTRA_POPS = []
+LANDSCAPE_ATLAS = os.environ.get("ANTXR2_LANDSCAPE", "ibdverse")
+LANDSCAPE_WEIGHTS_FROM = None
+if LANDSCAPE_ATLAS == "gca":
+    LANDSCAPE_WEIGHTS_FROM = LANDSCAPE_OUT
+    LANDSCAPE_CELLS = GCA_LANDSCAPE_CELLS
+    # ANTXR2_CELL_COVERAGE lowers the share of a program's IBDverse core that
+    # must clear the floor in a GCA cell (exon-only, shallower); its own output
+    CELL_CORE_COVERAGE = float(os.environ.get("ANTXR2_CELL_COVERAGE", CELL_CORE_COVERAGE))
+    LANDSCAPE_OUT = OUT_DIR / ("landscape_gca" if CELL_CORE_COVERAGE == 0.8
+                               else f"landscape_gca_cov{round(CELL_CORE_COVERAGE * 100)}")
+    LANDSCAPE_POPS = GCA_LANDSCAPE_POPS
+    LANDSCAPE_STATES = {"normal": "normal"}
+    LANDSCAPE_LINEAGES = GCA_LINEAGES
+elif LANDSCAPE_ATLAS == "skin":
+    LANDSCAPE_WEIGHTS_FROM = LANDSCAPE_OUT
+    LANDSCAPE_CELLS = SKIN_LANDSCAPE_CELLS
+    LANDSCAPE_OUT = OUT_DIR / "landscape_skin"
+    LANDSCAPE_POPS = []
+    LANDSCAPE_STATES = {"normal": "normal"}
+    LANDSCAPE_LINEAGES = {"fibroblast": [LANDSCAPE_FIB]}
+else:
+    assert LANDSCAPE_ATLAS == "ibdverse", LANDSCAPE_ATLAS
+
+# Reference-scaled run (planning note, "Reference-scaled coupling";
+# program_landscape_ref.py), ANTXR2_LANDSCAPE_RUN=ref: weights from every
+# gene that clears the floor in >= REF_MIN_CELLS filled cells, each gene on a
+# fixed reference SD, 200 anchors, its own output folder. In GCA, ANTXR2's
+# own floor drops to 0.05 (exploratory; the gene floor stays 0.07).
+LANDSCAPE_RUN = os.environ.get("ANTXR2_LANDSCAPE_RUN", "")
+LANDSCAPE_TARGET_FLOOR = FILTER_MEAN_THRESH
+REF_MIN_CELLS = 3
+if LANDSCAPE_RUN == "ref":
+    N_ANCHORS = 200
+    if LANDSCAPE_ATLAS == "gca":
+        LANDSCAPE_WEIGHTS_FROM = OUT_DIR / "landscape_ref"
+        LANDSCAPE_OUT = OUT_DIR / "landscape_gca_ref"
+        LANDSCAPE_TARGET_FLOOR = 0.05
+        LANDSCAPE_EXTRA_POPS = [GCA_FIB_FETAL, GCA_FIB_ALL]
+    elif LANDSCAPE_ATLAS == "skin":
+        LANDSCAPE_WEIGHTS_FROM = OUT_DIR / "landscape_ref"
+        LANDSCAPE_OUT = OUT_DIR / "landscape_skin_ref"
+        LANDSCAPE_EXTRA_POPS = [SKIN_FIB_CLUSTER, SKIN_FIB_MAIN]
+    else:
+        LANDSCAPE_OUT = OUT_DIR / "landscape_ref"
+        LANDSCAPE_EXTRA_POPS = [IBD_FIB_MAIN, IBD_FIB_MAIN_UNINF]
+else:
+    assert LANDSCAPE_RUN == "", LANDSCAPE_RUN

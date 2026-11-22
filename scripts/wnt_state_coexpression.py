@@ -2,13 +2,10 @@
 
 Motivation
 ----------
-The cross-tissue arm (HFS_ATLAS_NOTES.md) found that in healthy human intestine
-ANTXR2 is stromal and glial, with every epithelial label at the bottom of the
-per-cell-type ranking. That is in tension with the mouse work placing the Wnt
-role in epithelium cell-autonomously. The reconciling hypothesis is that the
-Wnt function is **injury-conditional** — in which case a healthy atlas cannot
-show it by construction, and the test has to be healthy vs inflamed in the same
-tissue.
+The mouse work (Bracq et al. 2025) places ANTXR2's Wnt role in epithelium, in
+recovery from injury. If the Wnt function is **injury-conditional**, a healthy
+atlas cannot show it by construction, and the test has to be healthy vs
+inflamed in the same tissue.
 
 This script computes, for each (state, donor, cell_type) group, the memento
 point-estimate correlation between ANTXR2 and each gene of

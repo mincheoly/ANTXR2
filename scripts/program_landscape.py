@@ -32,6 +32,10 @@ Three stages, each reading the previous one's output in LANDSCAPE_OUT:
                 target's point rho for anchor-based calibration),
                 genes/<pop>@<state>.csv.gz
 
+With ANTXR2_LANDSCAPE=gca (program_config) the same stages run on the GCA
+replication atlas; weights then copies the IBDverse weights instead of
+fitting them, and only draws the bootstrap.
+
 Cells with < LANDSCAPE_MIN_DONORS donors or ANTXR2 below the raw-mean floor
 are listed in cells.csv as not measurable and never scored.
 
@@ -40,6 +44,7 @@ Usage:
 """
 import argparse
 import json
+import shutil
 import time
 
 import numpy as np
@@ -48,8 +53,9 @@ import scipy.sparse as sp
 
 from program_config import (
     ANCHOR_SPAN_WINDOW, CELL_CORE_COVERAGE, CORE_PASS_FRAC, FILTER_MEAN_THRESH, LANDSCAPE_CELLS,
-    LANDSCAPE_FIB, LANDSCAPE_FIB_FLOOR, LANDSCAPE_LINEAGES, LANDSCAPE_MIN_DONORS, LANDSCAPE_OUT,
-    LANDSCAPE_POPS, LANDSCAPE_STATES,
+    LANDSCAPE_EXTRA_POPS, LANDSCAPE_FIB, LANDSCAPE_FIB_FLOOR, LANDSCAPE_LINEAGES, LANDSCAPE_MIN_DONORS, LANDSCAPE_OUT,
+    LANDSCAPE_TARGET_FLOOR,
+    LANDSCAPE_POPS, LANDSCAPE_STATES, LANDSCAPE_WEIGHTS_FROM,
     MIN_GENES, MIN_GENES_DISCOVERY, MIN_GROUP_CELLS, N_ANCHORS, N_BOOT, SEED, TARGET, gene_spans,
     pop_slug,
 )
@@ -58,7 +64,7 @@ from program_scores import (
     pool_rho, pooled_cov, pooled_var, size_factors, validate,
 )
 
-POPS = LANDSCAPE_POPS + [LANDSCAPE_FIB]
+POPS = LANDSCAPE_POPS + ([LANDSCAPE_FIB] if LANDSCAPE_FIB else []) + LANDSCAPE_EXTRA_POPS
 STATE_OF = {v: k for k, v in LANDSCAPE_STATES.items()}
 PREP, BOOT, GENES = (LANDSCAPE_OUT / d for d in ("prep", "boot", "genes"))
 for _d in (PREP, BOOT, GENES):
@@ -80,7 +86,8 @@ def load_population(pop):
     obs["mat_bin"] = ""
     sf = size_factors(X, genes)
     Y = (sp.diags(1 / sf) @ X).tocsr().astype(np.float32)
-    floor = LANDSCAPE_FIB_FLOOR if pop == LANDSCAPE_FIB else MIN_GROUP_CELLS
+    floor = (LANDSCAPE_FIB_FLOOR if pop == LANDSCAPE_FIB or pop in LANDSCAPE_EXTRA_POPS
+             else MIN_GROUP_CELLS)
     groups = make_groups(obs, "fine", {c: floor for c in obs.cell_type.unique()})
     return X, Y, sf, obs, genes, groups
 
@@ -104,8 +111,10 @@ def prep(pops, lib):
                 continue
             gr = np.concatenate(gc.rows.values)
             raw_mean, det = gene_stats(X, gr)
-            r.update(cells_in_groups=len(gr), antxr2_raw_mean=raw_mean[tix], antxr2_det=det[tix])
-            if raw_mean[tix] < FILTER_MEAN_THRESH:
+            # scale: mean normalised counts per cell / 1e4 (Y / scale ~ per 10k)
+            r.update(cells_in_groups=len(gr), antxr2_raw_mean=raw_mean[tix], antxr2_det=det[tix],
+                     scale=float(Y[gr].sum()) / len(gr) / 1e4)
+            if raw_mean[tix] < LANDSCAPE_TARGET_FLOOR:
                 rows.append(dict(r, filled=False, reason="ANTXR2 below floor"))
                 continue
             floor = np.where(raw_mean >= FILTER_MEAN_THRESH)[0]
@@ -138,6 +147,15 @@ def load_prep(c):
 # ------------------------------------------------------------------ weights
 
 def weights(lib):
+    if LANDSCAPE_WEIGHTS_FROM is None:
+        fit_weights(lib)
+    else:                                   # a replication atlas: fixed weights
+        for f in ("weights.csv", "programs.csv"):
+            shutil.copy(LANDSCAPE_WEIGHTS_FROM / f, LANDSCAPE_OUT / f)
+    bootstrap()
+
+
+def fit_weights(lib):
     cells = pd.read_csv(LANDSCAPE_OUT / "cells.csv")
     filled = cells[cells.filled].cell.tolist()
     passing, genes = {}, None
@@ -185,7 +203,11 @@ def weights(lib):
     programs = programs.join(pd.DataFrame(diag).T, on="program_id")
     programs.to_csv(LANDSCAPE_OUT / "programs.csv", index=False)
     pd.concat(wrows).to_csv(LANDSCAPE_OUT / "weights.csv", index=False)
+    print(f"weights: {len(core)} programs with a core of >= MIN_GENES genes "
+          f"({len(U)} genes)", flush=True)
 
+
+def bootstrap():
     # one donor bootstrap for the whole matrix: donors are resampled within
     # their state (each IBDverse ileum donor is in exactly one state)
     dstate = {}
@@ -202,8 +224,7 @@ def weights(lib):
         for st in strata:
             np.add.at(counts[b], st[rng.integers(0, len(st), len(st))], 1)
     np.savez(LANDSCAPE_OUT / "boot_counts.npz", donors=donors, counts=counts)
-    print(f"weights: {len(core)} programs with a core of >= MIN_GENES genes "
-          f"({len(U)} genes); bootstrap over {len(donors)} donors", flush=True)
+    print(f"bootstrap over {len(donors)} donors", flush=True)
 
 
 # ------------------------------------------------------------------ score

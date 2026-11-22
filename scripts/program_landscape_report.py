@@ -58,7 +58,7 @@ REPORT = LANDSCAPE_OUT / "report"
 REPORT.mkdir(parents=True, exist_ok=True)
 STATES = list(LANDSCAPE_STATES)
 STATE_LABEL = {"normal": "normal", "cd_uninflamed": "CD uninfl.", "cd_inflamed": "CD infl."}
-POPS = LANDSCAPE_POPS + [LANDSCAPE_FIB]
+POPS = LANDSCAPE_POPS + ([LANDSCAPE_FIB] if LANDSCAPE_FIB else [])
 DIVERGING = LinearSegmentedColormap.from_list("div", [ORANGE, "#f6c4ab", "#f0efec", "#b3cdf0", BLUE])
 
 
